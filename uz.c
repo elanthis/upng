@@ -171,12 +171,59 @@ static void huffman_tree_cleanup(huffman_tree* tree)
 	uivector_cleanup(&tree->lengths);
 }
 
-/*the tree representation used by the upng. return value is error*/
-static void huffman_tree_create(upng_t* upng, huffman_tree* tree)
+/*given the code lengths (as stored in the PNG file), generate the tree as defined by Deflate. maxbitlen is the maximum bits that a code in the tree can have. return value is error.*/
+static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const unsigned *bitlen, unsigned long numcodes, unsigned maxbitlen)
 {
+	uivector blcount;
+	uivector nextcode;
+	unsigned bits, n, i;
 	unsigned nodefilled = 0;	/*up to which node it is filled */
 	unsigned treepos = 0;	/*position in the tree (1 of the numcodes columns) */
-	unsigned n, i;
+
+	if (uivector_resize(&tree->lengths, numcodes) != UPNG_EOK) {
+		SET_ERROR(upng, UPNG_ENOMEM);
+		return;
+	}
+
+	for (i = 0; i < numcodes; i++) {
+		tree->lengths.data[i] = bitlen[i];
+	}
+
+	tree->numcodes = (unsigned)numcodes;	/*number of symbols */
+	tree->maxbitlen = maxbitlen;
+
+	/* initialize vectors */
+	uivector_init(&blcount);
+	uivector_init(&nextcode);
+	if (uivector_resize(&tree->tree1d, tree->numcodes) != UPNG_EOK
+			|| uivector_resizev(&blcount, tree->maxbitlen + 1, 0) != UPNG_EOK
+			|| uivector_resizev(&nextcode, tree->maxbitlen + 1, 0) != UPNG_EOK) {
+		uivector_cleanup(&blcount);
+		uivector_cleanup(&nextcode);
+		SET_ERROR(upng, UPNG_ENOMEM);
+		return;
+	}
+
+	/*step 1: count number of instances of each code length */
+	for (bits = 0; bits < tree->numcodes; bits++) {
+		blcount.data[tree->lengths.data[bits]]++;
+	}
+
+	/*step 2: generate the nextcode values */
+	for (bits = 1; bits <= tree->maxbitlen; bits++) {
+		nextcode.data[bits] = (nextcode.data[bits - 1] + blcount.data[bits - 1]) << 1;
+	}
+
+	/*step 3: generate all the codes */
+	for (n = 0; n < tree->numcodes; n++) {
+		if (tree->lengths.data[n] != 0) {
+			tree->tree1d.data[n] = nextcode.data[tree->lengths.data[n]]++;
+		}
+	}
+
+	/* cleanup temporary data structures */
+	uivector_cleanup(&blcount);
+	uivector_cleanup(&nextcode);
 
 	if (uivector_resize(&tree->tree2d, tree->numcodes * 2) != UPNG_EOK) {
 		SET_ERROR(upng, UPNG_ENOMEM);
@@ -197,6 +244,7 @@ static void huffman_tree_create(upng_t* upng, huffman_tree* tree)
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				return;
 			}
+
 			if (tree->tree2d.data[2 * treepos + bit] == 32767) {	/*not yet filled in */
 				if (i + 1 == tree->lengths.data[n]) {	/*last bit */
 					tree->tree2d.data[2 * treepos + bit] = n;	/*put the current code in it */
@@ -217,65 +265,6 @@ static void huffman_tree_create(upng_t* upng, huffman_tree* tree)
 			tree->tree2d.data[n] = 0;	/*remove possible remaining 32767's */
 		}
 	}
-}
-
-static void huffman_tree_create_lengths2(upng_t* upng, huffman_tree* tree)
-{				/*given that numcodes, lengths and maxbitlen are already filled in correctly. return value is error. */
-	uivector blcount;
-	uivector nextcode;
-	unsigned bits, n;
-
-	uivector_init(&blcount);
-	uivector_init(&nextcode);
-	if (uivector_resize(&tree->tree1d, tree->numcodes) != UPNG_EOK
-	    || uivector_resizev(&blcount, tree->maxbitlen + 1, 0) != UPNG_EOK
-	    || uivector_resizev(&nextcode, tree->maxbitlen + 1, 0) != UPNG_EOK) {
-		SET_ERROR(upng, UPNG_ENOMEM);
-	}
-
-	if (upng->error == UPNG_EOK) {
-		/*step 1: count number of instances of each code length */
-		for (bits = 0; bits < tree->numcodes; bits++) {
-			blcount.data[tree->lengths.data[bits]]++;
-		}
-
-		/*step 2: generate the nextcode values */
-		for (bits = 1; bits <= tree->maxbitlen; bits++) {
-			nextcode.data[bits] = (nextcode.data[bits - 1] + blcount.data[bits - 1]) << 1;
-		}
-
-		/*step 3: generate all the codes */
-		for (n = 0; n < tree->numcodes; n++) {
-			if (tree->lengths.data[n] != 0) {
-				tree->tree1d.data[n] = nextcode.data[tree->lengths.data[n]]++;
-			}
-		}
-	}
-
-	uivector_cleanup(&blcount);
-	uivector_cleanup(&nextcode);
-
-	if (upng->error == UPNG_EOK) {
-		huffman_tree_create(upng, tree);
-	}
-}
-
-/*given the code lengths (as stored in the PNG file), generate the tree as defined by Deflate. maxbitlen is the maximum bits that a code in the tree can have. return value is error.*/
-static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const unsigned *bitlen, unsigned long numcodes, unsigned maxbitlen)
-{
-	unsigned i;
-	if (uivector_resize(&tree->lengths, numcodes) != UPNG_EOK) {
-		SET_ERROR(upng, UPNG_ENOMEM);
-		return;
-	}
-
-	for (i = 0; i < numcodes; i++) {
-		tree->lengths.data[i] = bitlen[i];
-	}
-
-	tree->numcodes = (unsigned)numcodes;	/*number of symbols */
-	tree->maxbitlen = maxbitlen;
-	huffman_tree_create_lengths2(upng, tree);
 }
 
 /*get the tree of a deflated block with fixed tree, as specified in the deflate specification*/
