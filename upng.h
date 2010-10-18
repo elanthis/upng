@@ -55,29 +55,29 @@ typedef enum upng_format {
 	UPNG_GA_8
 } upng_format;
 
-typedef struct upng_info upng_info;
+typedef struct upng_t upng_t;
 
-upng_info*	upng_new			(void);
-void		upng_free			(upng_info* decoder);
+upng_t*	upng_new			(void);
+void		upng_free			(upng_t* decoder);
 
-upng_error	upng_decode			(upng_info* decoder, const unsigned char* in, unsigned long insize);
-upng_error	upng_decode_file	(upng_info* decoder, const char* filename);
+upng_error	upng_decode			(upng_t* decoder, const unsigned char* in, unsigned long insize);
+upng_error	upng_decode_file	(upng_t* decoder, const char* filename);
 
-upng_error	upng_inspect		(upng_info* decoder, const unsigned char* in, unsigned long size);
-upng_error	upng_inspect_file	(upng_info* decoder, const char* filename);
+upng_error	upng_inspect		(upng_t* decoder, const unsigned char* in, unsigned long size);
+upng_error	upng_inspect_file	(upng_t* decoder, const char* filename);
 
-upng_error	upng_get_error		(const upng_info* info);
-unsigned	upng_get_error_line	(const upng_info* info);
+upng_error	upng_get_error		(const upng_t* upng);
+unsigned	upng_get_error_line	(const upng_t* upng);
 
-unsigned	upng_get_width		(const upng_info* info);
-unsigned	upng_get_height		(const upng_info* info);
-unsigned	upng_get_bpp		(const upng_info* info);
-unsigned	upng_get_format		(const upng_info* info);
+unsigned	upng_get_width		(const upng_t* upng);
+unsigned	upng_get_height		(const upng_t* upng);
+unsigned	upng_get_bpp		(const upng_t* upng);
+unsigned	upng_get_format		(const upng_t* upng);
 
-upng_error	uz_inflate			(upng_info* decoder, unsigned char** out, unsigned long* outsize, const unsigned char* in, unsigned long insize);
+upng_error	uz_inflate			(upng_t* decoder, unsigned char** out, unsigned long* outsize, const unsigned char* in, unsigned long insize);
 
-const unsigned char*	upng_get_buffer		(const upng_info* info);
-unsigned				upng_get_size		(const upng_info* info);
+const unsigned char*	upng_get_buffer		(const upng_t* upng);
+unsigned				upng_get_size		(const upng_t* upng);
 
 /* internal structures and data types */
 
@@ -88,7 +88,7 @@ typedef enum upng_color {
 	UPNG_RGBA		= 6
 } upng_color;
 
-struct upng_info {
+struct upng_t {
 	unsigned		width;
 	unsigned		height;
 

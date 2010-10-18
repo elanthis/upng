@@ -8,22 +8,22 @@
 int main(int argc, char** argv) {
 	SDL_Event event;
 	upng_error error;
-	upng_info* info;
+	upng_t* upng;
 	GLuint texture;
 
 	if (argc <= 1) {
 		return 0;
 	}
 
-	info = upng_new();
-	error = upng_decode_file(info, argv[1]);
+	upng = upng_new();
+	error = upng_decode_file(upng, argv[1]);
 	if (error != UPNG_EOK) {
-		printf("error: %u %u\n", upng_get_error(info), upng_get_error_line(info));
+		printf("error: %u %u\n", upng_get_error(upng), upng_get_error_line(upng));
 		return 0;
 	}
 
 	SDL_Init(SDL_INIT_VIDEO);
-	SDL_SetVideoMode(upng_get_width(info), upng_get_height(info), 0, SDL_OPENGL|SDL_DOUBLEBUF);
+	SDL_SetVideoMode(upng_get_width(upng), upng_get_height(upng), 0, SDL_OPENGL|SDL_DOUBLEBUF);
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
@@ -44,18 +44,18 @@ int main(int argc, char** argv) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-	switch (upng_get_format(info)) {
+	switch (upng_get_format(upng)) {
 	case UPNG_RGB_888:
-		glTexImage2D(GL_TEXTURE_2D, 0, 3, upng_get_width(info), upng_get_height(info), 0, GL_RGB, GL_UNSIGNED_BYTE, upng_get_buffer(info));
+		glTexImage2D(GL_TEXTURE_2D, 0, 3, upng_get_width(upng), upng_get_height(upng), 0, GL_RGB, GL_UNSIGNED_BYTE, upng_get_buffer(upng));
 		break;
 	case UPNG_RGBA_8888:
-		glTexImage2D(GL_TEXTURE_2D, 0, 4, upng_get_width(info), upng_get_height(info), 0, GL_RGBA, GL_UNSIGNED_BYTE, upng_get_buffer(info));
+		glTexImage2D(GL_TEXTURE_2D, 0, 4, upng_get_width(upng), upng_get_height(upng), 0, GL_RGBA, GL_UNSIGNED_BYTE, upng_get_buffer(upng));
 		break;
 	default:
 		return 1;
 	}
 
-	upng_free(info);
+	upng_free(upng);
 
 	while (SDL_WaitEvent(&event)) {
 		if (event.type == SDL_QUIT) {

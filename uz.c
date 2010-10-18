@@ -34,7 +34,7 @@ freely, subject to the following restrictions:
 #define NUM_CODE_LENGTH_CODES 19	/*the code length codes. 0-15: code lengths, 16: copy previous 3-6 times, 17: 3-10 zeros, 18: 11-138 zeros */
 #define NUM_DISTANCE_SYMBOLS 32	/*the distance codes have their own symbols, 30 used, 2 unused */
 
-#define SET_ERROR(info,code) do { (info)->error = (code); (info)->error_line = __LINE__; } while (0)
+#define SET_ERROR(upng,code) do { (upng)->error = (code); (upng)->error_line = __LINE__; } while (0)
 
 typedef struct ucvector {
 	unsigned char *data;
@@ -171,7 +171,7 @@ static void huffman_tree_cleanup(huffman_tree* tree)
 	uivector_cleanup(&tree->lengths);
 }
 
-/*the tree representation used by the info. return value is error*/
+/*the tree representation used by the upng. return value is error*/
 static unsigned huffman_tree_create(huffman_tree* tree)
 {
 	unsigned nodefilled = 0;	/*up to which node it is filled */
@@ -631,7 +631,7 @@ static unsigned inflate_nocmp(ucvector* out, const unsigned char *in, unsigned l
 }
 
 /*inflate the deflated data (cfr. deflate spec); return value is the error*/
-static upng_error uz_inflate_data(upng_info* info, ucvector* out, const unsigned char *in, unsigned long insize, unsigned long inpos)
+static upng_error uz_inflate_data(upng_t* upng, ucvector* out, const unsigned char *in, unsigned long insize, unsigned long inpos)
 {
 	unsigned long bp = 0;	/*bit pointer in the "in" data, current byte is bp >> 3, current bit is bp & 0x7 (from lsb to msb of the byte) */
 	unsigned long pos = 0;	/*byte position in the out buffer */
@@ -644,8 +644,8 @@ static upng_error uz_inflate_data(upng_info* info, ucvector* out, const unsigned
 
 		/* ensure next bit doesn't point past the end of the buffer */
 		if ((bp >> 3) >= insize) {
-			SET_ERROR(info, UPNG_EMALFORMED);
-			return info->error;
+			SET_ERROR(upng, UPNG_EMALFORMED);
+			return upng->error;
 		}
 
 		/* read block control bits */
@@ -654,8 +654,8 @@ static upng_error uz_inflate_data(upng_info* info, ucvector* out, const unsigned
 
 		/* process control type appropriateyly */
 		if (btype == 3) {
-			SET_ERROR(info, UPNG_EMALFORMED);
-			return info->error;
+			SET_ERROR(upng, UPNG_EMALFORMED);
+			return upng->error;
 		} else if (btype == 0) {
 			error = inflate_nocmp(out, &in[inpos], &bp, &pos, insize);	/*no compression */
 		} else {
@@ -663,8 +663,8 @@ static upng_error uz_inflate_data(upng_info* info, ucvector* out, const unsigned
 		}
 
 		/* stop if an error has occured */
-		if (info->error != UPNG_EOK) {
-			return info->error;
+		if (upng->error != UPNG_EOK) {
+			return upng->error;
 			return error;
 		}
 	}
@@ -672,47 +672,47 @@ static upng_error uz_inflate_data(upng_info* info, ucvector* out, const unsigned
 	/* resize output buffer accordingly */
 	error = ucvector_resize(out, pos);
 	if (error != UPNG_EOK) {
-		SET_ERROR(info, error);
+		SET_ERROR(upng, error);
 	}
 
-	return info->error;
+	return upng->error;
 }
 
-upng_error uz_inflate(upng_info* info, unsigned char **out, unsigned long *outsize, const unsigned char *in, unsigned long insize)
+upng_error uz_inflate(upng_t* upng, unsigned char **out, unsigned long *outsize, const unsigned char *in, unsigned long insize)
 {
 	ucvector outv;
 
 	/* we require two bytes for the zlib data header */
 	if (insize < 2) {
-		SET_ERROR(info, UPNG_EMALFORMED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return upng->error;
 	}
 
 	/* 256 * in[0] + in[1] must be a multiple of 31, the FCHECK value is supposed to be made that way */
 	if ((in[0] * 256 + in[1]) % 31 != 0) {
-		SET_ERROR(info, UPNG_EMALFORMED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return upng->error;
 	}
 
 	/*error: only compression method 8: inflate with sliding window of 32k is supported by the PNG spec */
 	if ((in[0] & 15) != 8 || ((in[0] >> 4) & 15) > 7) {
-		SET_ERROR(info, UPNG_EMALFORMED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return upng->error;
 	}
 
 	/* the specification of PNG says about the zlib stream: "The additional flags shall not specify a preset dictionary." */
 	if (((in[1] >> 5) & 1) != 0) {
-		SET_ERROR(info, UPNG_EMALFORMED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return upng->error;
 	}
 
 	/* create output buffer */
 	ucvector_init_buffer(&outv, *out, *outsize);
-	uz_inflate_data(info, &outv, in, insize, 2);
+	uz_inflate_data(upng, &outv, in, insize, 2);
 
 	/* store output */
 	*out = outv.data;
 	*outsize = outv.size;
 
-	return info->error;
+	return upng->error;
 }

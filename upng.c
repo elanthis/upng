@@ -39,7 +39,7 @@ freely, subject to the following restrictions:
 #define CHUNK_IDAT MAKE_DWORD('I','D','A','T')
 #define CHUNK_IEND MAKE_DWORD('I','E','N','D')
 
-#define SET_ERROR(info,code) do { (info)->error = (code); (info)->error_line = __LINE__; } while (0)
+#define SET_ERROR(upng,code) do { (upng)->error = (code); (upng)->error_line = __LINE__; } while (0)
 
 #define upng_chunk_length(chunk) MAKE_DWORD_PTR(chunk)
 #define upng_chunk_type(chunk) MAKE_DWORD_PTR((chunk) + 4)
@@ -183,7 +183,7 @@ static void remove_padding_bits(unsigned char *out, const unsigned char *in, uns
 }
 
 /*out must be buffer big enough to contain full image, and in must contain the full decompressed data from the IDAT chunks*/
-static upng_error post_process_scanlines(unsigned char *out, unsigned char *in, const upng_info* info_png)
+static upng_error post_process_scanlines(unsigned char *out, unsigned char *in, const upng_t* info_png)
 {
 	unsigned bpp = upng_get_bpp(info_png);
 	unsigned w = info_png->width;
@@ -204,70 +204,70 @@ static upng_error post_process_scanlines(unsigned char *out, unsigned char *in, 
 }
 
 /*read the information from the header and store it in the upng_Info. return value is error*/
-upng_error upng_inspect(upng_info* info, const unsigned char *in, unsigned long inlength)
+upng_error upng_inspect(upng_t* upng, const unsigned char *in, unsigned long inlength)
 {
 	/* ensure we have valid input */
 	if (inlength == 0 || in == NULL) {
-		SET_ERROR(info, UPNG_ENOTPNG);
-		return info->error;
+		SET_ERROR(upng, UPNG_ENOTPNG);
+		return upng->error;
 	}
 
 	/* minimum length of a valid PNG file is 29 bytes
 	 * FIXME: verify this against the specification, or
 	 * better against the actual code below */
 	if (inlength < 29) {
-		SET_ERROR(info, UPNG_ENOTPNG);
-		return info->error;
+		SET_ERROR(upng, UPNG_ENOTPNG);
+		return upng->error;
 	}
 
 	/* check that PNG header matches expected value */
 	if (in[0] != 137 || in[1] != 80 || in[2] != 78 || in[3] != 71 || in[4] != 13 || in[5] != 10 || in[6] != 26 || in[7] != 10) {
-		SET_ERROR(info, UPNG_ENOTPNG);
-		return info->error;
+		SET_ERROR(upng, UPNG_ENOTPNG);
+		return upng->error;
 	}
 
 	/* check that the first chunk is the IHDR chunk */
 	if (MAKE_DWORD_PTR(in + 12) != CHUNK_IHDR) {
-		SET_ERROR(info, UPNG_EMALFORMED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return upng->error;
 	}
 
 	/* read the values given in the header */
-	info->width = MAKE_DWORD_PTR(in + 16);
-	info->height = MAKE_DWORD_PTR(in + 20);
-	info->color_depth = in[24];
-	info->color_type = (upng_color)in[25];
+	upng->width = MAKE_DWORD_PTR(in + 16);
+	upng->height = MAKE_DWORD_PTR(in + 20);
+	upng->color_depth = in[24];
+	upng->color_type = (upng_color)in[25];
 
 	/* determine our color format */
-	info->format = upng_get_format(info);
-	if (info->format == UPNG_BADFORMAT) {
-		SET_ERROR(info, UPNG_EUNSUPPORTED);
-		return info->error;
+	upng->format = upng_get_format(upng);
+	if (upng->format == UPNG_BADFORMAT) {
+		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		return upng->error;
 	}
 
 	/* check that the compression method (byte 27) is 0 (only allowed value in spec) */
 	if (in[26] != 0) {
-		SET_ERROR(info, UPNG_EMALFORMED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return upng->error;
 	}
 
 	/* check that the compression method (byte 27) is 0 (only allowed value in spec) */
 	if (in[27] != 0) {
-		SET_ERROR(info, UPNG_EMALFORMED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return upng->error;
 	}
 
 	/* check that the compression method (byte 27) is 0 (spec allows 1, but uPNG does not support it) */
 	if (in[28] != 0) {
-		SET_ERROR(info, UPNG_EUNSUPPORTED);
-		return info->error;
+		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		return upng->error;
 	}
 
-	return info->error;
+	return upng->error;
 }
 
 /*read a PNG, the result will be in the same color type as the PNG (hence "generic")*/
-upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long size)
+upng_error upng_decode(upng_t* upng, const unsigned char *in, unsigned long size)
 {
 	const unsigned char *chunk;
 	unsigned char* compressed;
@@ -278,21 +278,21 @@ upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long s
 
 	/* cannot work on an empty input */
 	if (size == 0 || in == 0) {
-		SET_ERROR(info, UPNG_ENOTPNG);
-		return info->error;
+		SET_ERROR(upng, UPNG_ENOTPNG);
+		return upng->error;
 	}
 
 	/* release old result, if any */
-	if (info->buffer != 0) {
-		free(info->buffer);
-		info->buffer = 0;
-		info->size = 0;
+	if (upng->buffer != 0) {
+		free(upng->buffer);
+		upng->buffer = 0;
+		upng->size = 0;
 	}
 
 	/* parse the main header */
-	upng_inspect(info, in, size);
-	if (info->error != UPNG_EOK)
-		return info->error;
+	upng_inspect(upng, in, size);
+	if (upng->error != UPNG_EOK)
+		return upng->error;
 
 	/* first byte of the first chunk after the header */
 	chunk = in + 33;
@@ -305,21 +305,21 @@ upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long s
 
 		/* make sure chunk header is not larger than the total compressed */
 		if ((unsigned long)(chunk - in + 12) > size) {
-			SET_ERROR(info, UPNG_EMALFORMED);
-			return info->error;
+			SET_ERROR(upng, UPNG_EMALFORMED);
+			return upng->error;
 		}
 
 		/* get length; sanity check it */
 		length = upng_chunk_length(chunk);
 		if (length > INT_MAX) {
-			SET_ERROR(info, UPNG_EMALFORMED);
-			return info->error;
+			SET_ERROR(upng, UPNG_EMALFORMED);
+			return upng->error;
 		}
 
 		/* make sure chunk header+paylaod is not larger than the total compressed */
 		if ((unsigned long)(chunk - in + length + 12) > size) {
-			SET_ERROR(info, UPNG_EMALFORMED);
-			return info->error;
+			SET_ERROR(upng, UPNG_EMALFORMED);
+			return upng->error;
 		}
 
 		/* get pointer to payload */
@@ -331,8 +331,8 @@ upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long s
 		} else if (upng_chunk_type(chunk) == CHUNK_IEND) {
 			break;
 		} else if (upng_chunk_critical(chunk)) {
-			SET_ERROR(info, UPNG_EUNSUPPORTED);
-			return info->error;
+			SET_ERROR(upng, UPNG_EUNSUPPORTED);
+			return upng->error;
 		}
 
 		chunk += upng_chunk_length(chunk) + 12;
@@ -341,8 +341,8 @@ upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long s
 	/* allocate enough space for the (compressed and filtered) image data */
 	compressed = (unsigned char*)malloc(compressed_size);
 	if (compressed == NULL) {
-		SET_ERROR(info, UPNG_ENOMEM);
-		return info->error;
+		SET_ERROR(upng, UPNG_ENOMEM);
+		return upng->error;
 	}
 
 	/* scan through the chunks again, this time copying the values into
@@ -367,44 +367,44 @@ upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long s
 	}
 
 	/* allocate space to store inflated (but still filtered) data */
-	inflated_size = ((info->width * (info->height * upng_get_bpp(info) + 7)) / 8) + info->height;
+	inflated_size = ((upng->width * (upng->height * upng_get_bpp(upng) + 7)) / 8) + upng->height;
 	inflated = (unsigned char*)malloc(inflated_size);
 	if (inflated == NULL) {
 		free(compressed);
-		SET_ERROR(info, UPNG_ENOMEM);
-		return info->error;
+		SET_ERROR(upng, UPNG_ENOMEM);
+		return upng->error;
 	}
 
 	/* decompress image data */
-	error = uz_inflate(info, &inflated, &inflated_size, compressed, compressed_size);
+	error = uz_inflate(upng, &inflated, &inflated_size, compressed, compressed_size);
 	if (error != UPNG_EOK) {
 		free(compressed);
 		free(inflated);
-		return info->error;
+		return upng->error;
 	}
 
 	/* free the compressed compressed data */
 	free(compressed);
 
 	/* allocate final image buffer */
-	info->size = (info->height * info->width * upng_get_bpp(info) + 7) / 8;
-	info->buffer = (unsigned char*)malloc(info->size);
-	if (info->buffer == NULL) {
+	upng->size = (upng->height * upng->width * upng_get_bpp(upng) + 7) / 8;
+	upng->buffer = (unsigned char*)malloc(upng->size);
+	if (upng->buffer == NULL) {
 		free(inflated);
-		info->size = 0;
-		SET_ERROR(info, UPNG_ENOMEM);
-		return info->error;
+		upng->size = 0;
+		SET_ERROR(upng, UPNG_ENOMEM);
+		return upng->error;
 	}
 
 	/* unfilter scanlines */
-	error = post_process_scanlines(info->buffer, inflated, info);
+	error = post_process_scanlines(upng->buffer, inflated, upng);
 	if (error != UPNG_EOK) {
 		free(inflated);
-		free(info->buffer);
-		info->buffer = NULL;
-		info->size = 0;
-		SET_ERROR(info, error);
-		return info->error;
+		free(upng->buffer);
+		upng->buffer = NULL;
+		upng->size = 0;
+		SET_ERROR(upng, error);
+		return upng->error;
 	}
 
 	/* free the inflated, filtered data */
@@ -413,7 +413,7 @@ upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long s
 	return UPNG_EOK;
 }
 
-upng_error upng_decode_file(upng_info* info, const char *filename)
+upng_error upng_decode_file(upng_t* upng, const char *filename)
 {
 	unsigned char *buffer;
 	FILE *file;
@@ -438,89 +438,89 @@ upng_error upng_decode_file(upng_info* info, const char *filename)
 	fread(buffer, 1, (unsigned long)size, file);
 	fclose(file);
 
-	upng_decode(info, buffer, size);
+	upng_decode(upng, buffer, size);
 
 	free(buffer);
 
-	return info->error;
+	return upng->error;
 }
 
-upng_info* upng_new(void)
+upng_t* upng_new(void)
 {
-	upng_info* info;
+	upng_t* upng;
 
-	info = (upng_info*)malloc(sizeof(upng_info));
-	if (info == NULL) {
+	upng = (upng_t*)malloc(sizeof(upng_t));
+	if (upng == NULL) {
 		return NULL;
 	}
 
-	info->buffer = NULL;
-	info->size = 0;
+	upng->buffer = NULL;
+	upng->size = 0;
 
-	info->width = info->height = 0;
+	upng->width = upng->height = 0;
 
-	info->color_type = UPNG_RGBA;
-	info->color_depth = 8;
-	info->format = UPNG_RGBA_8888;
+	upng->color_type = UPNG_RGBA;
+	upng->color_depth = 8;
+	upng->format = UPNG_RGBA_8888;
 
-	info->error = UPNG_EOK;
-	info->error_line = 0;
+	upng->error = UPNG_EOK;
+	upng->error_line = 0;
 
-	return info;
+	return upng;
 }
 
-void upng_free(upng_info* info)
+void upng_free(upng_t* upng)
 {
 	/* deallocate image buffer */
-	if (info->buffer != NULL) {
-		free(info->buffer);
+	if (upng->buffer != NULL) {
+		free(upng->buffer);
 	}
 
 	/* deallocate struct itself */
-	free(info);
+	free(upng);
 }
 
-upng_error upng_get_error(const upng_info* info)
+upng_error upng_get_error(const upng_t* upng)
 {
-	return info->error;
+	return upng->error;
 }
 
-unsigned upng_get_error_line(const upng_info* info)
+unsigned upng_get_error_line(const upng_t* upng)
 {
-	return info->error_line;
+	return upng->error_line;
 }
 
-unsigned upng_get_width(const upng_info* info)
+unsigned upng_get_width(const upng_t* upng)
 {
-	return info->width;
+	return upng->width;
 }
 
-unsigned upng_get_height(const upng_info* info)
+unsigned upng_get_height(const upng_t* upng)
 {
-	return info->height;
+	return upng->height;
 }
 
-unsigned upng_get_bpp(const upng_info* info)
+unsigned upng_get_bpp(const upng_t* upng)
 {
-	switch (info->color_type) {
+	switch (upng->color_type) {
 	case UPNG_GREY:
-		return info->color_depth;
+		return upng->color_depth;
 	case UPNG_RGB:
-		return info->color_depth * 3;
+		return upng->color_depth * 3;
 	case UPNG_GREY_ALPHA:
-		return info->color_depth * 2;
+		return upng->color_depth * 2;
 	case UPNG_RGBA:
-		return info->color_depth * 4;
+		return upng->color_depth * 4;
 	default:
 		return 0;
 	}
 }
 
-upng_format upng_get_format(const upng_info* info)
+upng_format upng_get_format(const upng_t* upng)
 {
-	switch (info->color_type) {
+	switch (upng->color_type) {
 	case UPNG_GREY:
-		switch (info->color_depth) {
+		switch (upng->color_depth) {
 		case 1:
 			return UPNG_G_1;
 		case 2:
@@ -533,13 +533,13 @@ upng_format upng_get_format(const upng_info* info)
 			return UPNG_BADFORMAT;
 		}
 	case UPNG_RGB:
-		if (info->color_depth == 8) {
+		if (upng->color_depth == 8) {
 			return UPNG_RGB_888;
 		} else {
 			return UPNG_BADFORMAT;
 		}
 	case UPNG_GREY_ALPHA:
-		switch (info->color_depth) {
+		switch (upng->color_depth) {
 		case 1:
 			return UPNG_GA_1;
 		case 2:
@@ -552,7 +552,7 @@ upng_format upng_get_format(const upng_info* info)
 			return UPNG_BADFORMAT;
 		}
 	case UPNG_RGBA:
-		if (info->color_depth == 8) {
+		if (upng->color_depth == 8) {
 			return UPNG_RGBA_8888;
 		} else {
 			return UPNG_BADFORMAT;
@@ -562,12 +562,12 @@ upng_format upng_get_format(const upng_info* info)
 	}
 }
 
-const unsigned char* upng_get_buffer(const upng_info* info)
+const unsigned char* upng_get_buffer(const upng_t* upng)
 {
-	return info->buffer;
+	return upng->buffer;
 }
 
-unsigned upng_get_size(const upng_info* info)
+unsigned upng_get_size(const upng_t* upng)
 {
-	return info->size;
+	return upng->size;
 }
