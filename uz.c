@@ -24,6 +24,8 @@ freely, subject to the following restrictions:
 		distribution.
 */
 
+#include <stdlib.h>
+
 #include "upng.h"
 
 typedef struct ucvector {
@@ -38,16 +40,90 @@ typedef struct uivector {
 	unsigned long allocsize;	/*allocated size in bytes */
 } uivector;
 
-extern void			uivector_cleanup(uivector* p);
-extern upng_error	uivector_resize(uivector* p, unsigned long size);
-extern upng_error	uivector_resizev(uivector* p, unsigned long size, unsigned value);
-extern void			uivector_init(uivector* p);
+void uivector_cleanup(uivector* p)
+{
+	p->size = p->allocsize = 0;
+	free(p->data);
+	p->data = NULL;
+}
 
-extern void			ucvector_cleanup(void *p);
-extern upng_error	ucvector_resize(ucvector* p, unsigned long size);
-extern upng_error	ucvector_resizev(ucvector* p, unsigned long size, unsigned char value);
-extern void			ucvector_init(ucvector* p);
-extern void			ucvector_init_buffer(ucvector* p, unsigned char *buffer, unsigned long size);
+upng_error uivector_resize(uivector* p, unsigned long size)
+{				/*returns 1 if success, 0 if failure ==> nothing done */
+	if (size* sizeof(unsigned) > p->allocsize) {
+		unsigned long newsize = size* sizeof(unsigned)* 2;
+		void *data = realloc(p->data, newsize);
+		if (data) {
+			p->allocsize = newsize;
+			p->data = (unsigned *)data;
+			p->size = size;
+		} else
+			return UPNG_ENOMEM;
+	} else
+		p->size = size;
+	return UPNG_EOK;
+}
+
+upng_error uivector_resizev(uivector* p, unsigned long size, unsigned value)
+{				/*resize and give all new elements the value */
+	unsigned long oldsize = p->size, i;
+	if (uivector_resize(p, size) != UPNG_EOK)
+		return UPNG_ENOMEM;
+	for (i = oldsize; i < size; i++)
+		p->data[i] = value;
+	return UPNG_EOK;
+}
+
+void uivector_init(uivector* p)
+{
+	p->data = NULL;
+	p->size = p->allocsize = 0;
+}
+
+void ucvector_cleanup(void *p)
+{
+	((ucvector *) p)->size = ((ucvector *) p)->allocsize = 0;
+	free(((ucvector *) p)->data);
+	((ucvector *) p)->data = NULL;
+}
+
+upng_error ucvector_resize(ucvector* p, unsigned long size)
+{				/*returns 1 if success, 0 if failure ==> nothing done */
+	if (size* sizeof(unsigned char) > p->allocsize) {
+		unsigned long newsize = size* sizeof(unsigned char)* 2;
+		void *data = realloc(p->data, newsize);
+		if (data) {
+			p->allocsize = newsize;
+			p->data = (unsigned char *)data;
+			p->size = size;
+		} else
+			return UPNG_ENOMEM;	/*error: not enough memory */
+	} else
+		p->size = size;
+	return UPNG_EOK;
+}
+
+upng_error ucvector_resizev(ucvector* p, unsigned long size, unsigned char value)
+{				/*resize and give all new elements the value */
+	unsigned long oldsize = p->size, i;
+	if (ucvector_resize(p, size) != UPNG_EOK)
+		return UPNG_ENOMEM;
+	for (i = oldsize; i < size; i++)
+		p->data[i] = value;
+	return UPNG_EOK;
+}
+
+void ucvector_init(ucvector* p)
+{
+	p->data = NULL;
+	p->size = p->allocsize = 0;
+}
+
+/*you can both convert from vector to buffer&size and vica versa*/
+void ucvector_init_buffer(ucvector* p, unsigned char *buffer, unsigned long size)
+{
+	p->data = buffer;
+	p->allocsize = p->size = size;
+}
 
 static unsigned char read_bit(unsigned long *bitpointer, const unsigned char *bitstream)
 {
