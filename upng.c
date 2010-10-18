@@ -376,7 +376,7 @@ upng_error upng_decode(upng_t* upng, const unsigned char *in, unsigned long size
 	}
 
 	/* decompress image data */
-	error = uz_inflate(upng, &inflated, &inflated_size, compressed, compressed_size);
+	error = uz_inflate(upng, inflated, inflated_size, compressed, compressed_size);
 	if (error != UPNG_EOK) {
 		free(compressed);
 		free(inflated);

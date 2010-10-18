@@ -74,7 +74,7 @@ unsigned	upng_get_height		(const upng_t* upng);
 unsigned	upng_get_bpp		(const upng_t* upng);
 unsigned	upng_get_format		(const upng_t* upng);
 
-upng_error	uz_inflate			(upng_t* decoder, unsigned char** out, unsigned long* outsize, const unsigned char* in, unsigned long insize);
+upng_error	uz_inflate			(upng_t* decoder, unsigned char* out, unsigned long outsize, const unsigned char* in, unsigned long insize);
 
 const unsigned char*	upng_get_buffer		(const upng_t* upng);
 unsigned				upng_get_size		(const upng_t* upng);

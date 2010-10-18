@@ -36,12 +36,6 @@ freely, subject to the following restrictions:
 
 #define SET_ERROR(upng,code) do { (upng)->error = (code); (upng)->error_line = __LINE__; } while (0)
 
-typedef struct ucvector {
-	unsigned char *data;
-	unsigned long size;	/*used size */
-	unsigned long allocsize;	/*allocated size */
-} ucvector;
-
 typedef struct uivector {
 	unsigned *data;
 	unsigned long size;	/*size in number of unsigned longs */
@@ -117,29 +111,6 @@ static void uivector_init(uivector* p)
 {
 	p->data = NULL;
 	p->size = p->allocsize = 0;
-}
-
-static upng_error ucvector_resize(ucvector* p, unsigned long size)
-{				/*returns 1 if success, 0 if failure ==> nothing done */
-	if (size* sizeof(unsigned char) > p->allocsize) {
-		unsigned long newsize = size* sizeof(unsigned char)* 2;
-		void *data = realloc(p->data, newsize);
-		if (data) {
-			p->allocsize = newsize;
-			p->data = (unsigned char *)data;
-			p->size = size;
-		} else
-			return UPNG_ENOMEM;	/*error: not enough memory */
-	} else
-		p->size = size;
-	return UPNG_EOK;
-}
-
-/*you can both convert from vector to buffer&size and vica versa*/
-static void ucvector_init_buffer(ucvector* p, unsigned char *buffer, unsigned long size)
-{
-	p->data = buffer;
-	p->allocsize = p->size = size;
 }
 
 static unsigned char read_bit(unsigned long *bitpointer, const unsigned char *bitstream)
@@ -538,7 +509,7 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 }
 
 /*inflate a block with dynamic of fixed Huffman tree*/
-static void inflate_huffman(upng_t* upng, ucvector* out, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength, unsigned btype)
+static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outsize, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength, unsigned btype)
 {
 	unsigned done = 0;
 	huffman_tree codetree;	/*287, the code tree for Huffman codes */
@@ -567,16 +538,13 @@ static void inflate_huffman(upng_t* upng, ucvector* out, const unsigned char *in
 			done = 1;
 		} else if (code <= 255) {
 			/* literal symbol */
-			if ((*pos) >= out->size) {
-				/* reserve more room at once */
-				if (ucvector_resize(out, ((*pos) + 1) * 2) != UPNG_EOK) {
-					SET_ERROR(upng, UPNG_ENOMEM);
-					break;
-				}
+			if ((*pos) >= outsize) {
+				SET_ERROR(upng, UPNG_EMALFORMED);
+				break;
 			}
 
 			/* store output */
-			out->data[(*pos)++] = (unsigned char)(code);
+			out[(*pos)++] = (unsigned char)(code);
 		} else if (code >= FIRST_LENGTH_CODE_INDEX && code <= LAST_LENGTH_CODE_INDEX) {	/*length code */
 			/* part 1: get length base */
 			unsigned long length = LENGTHBASE[code - FIRST_LENGTH_CODE_INDEX];
@@ -622,18 +590,13 @@ static void inflate_huffman(upng_t* upng, ucvector* out, const unsigned char *in
 			start = (*pos);
 			backward = start - distance;
 
-			if ((*pos) + length >= out->size) {
-				ucvector_resize(out, ((*pos) + length) * 2);	/*reserve more room at once */
-			}
-
-			if ((*pos) + length >= out->size) {
+			if ((*pos) + length >= outsize) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				break;
 			}
 
-			/*not enough memory */
 			for (forward = 0; forward < length; forward++) {
-				out->data[(*pos)++] = out->data[backward];
+				out[(*pos)++] = out[backward];
 				backward++;
 
 				if (backward >= start) {
@@ -647,7 +610,7 @@ static void inflate_huffman(upng_t* upng, ucvector* out, const unsigned char *in
 	huffman_tree_cleanup(&codetreeD);
 }
 
-static void inflate_nocmp(upng_t* upng, ucvector* out, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength)
+static void inflate_nocmp(upng_t* upng, unsigned char* out, unsigned long outsize, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength)
 {
 	unsigned long p;
 	unsigned len, nlen, n;
@@ -675,11 +638,9 @@ static void inflate_nocmp(upng_t* upng, ucvector* out, const unsigned char *in, 
 		return;
 	}
 
-	if ((*pos) + len >= out->size) {
-		if (ucvector_resize(out, (*pos) + len) != UPNG_EOK) {
-			SET_ERROR(upng, UPNG_ENOMEM);
-			return;
-		}
+	if ((*pos) + len >= outsize) {
+		SET_ERROR(upng, UPNG_EMALFORMED);
+		return;
 	}
 
 	/* read the literal data: len bytes are now stored in the out buffer */
@@ -689,14 +650,14 @@ static void inflate_nocmp(upng_t* upng, ucvector* out, const unsigned char *in, 
 	}
 
 	for (n = 0; n < len; n++) {
-		out->data[(*pos)++] = in[p++];
+		out[(*pos)++] = in[p++];
 	}
 
 	(*bp) = p * 8;
 }
 
 /*inflate the deflated data (cfr. deflate spec); return value is the error*/
-static upng_error uz_inflate_data(upng_t* upng, ucvector* out, const unsigned char *in, unsigned long insize, unsigned long inpos)
+static upng_error uz_inflate_data(upng_t* upng, unsigned char* out, unsigned long outsize, const unsigned char *in, unsigned long insize, unsigned long inpos)
 {
 	unsigned long bp = 0;	/*bit pointer in the "in" data, current byte is bp >> 3, current bit is bp & 0x7 (from lsb to msb of the byte) */
 	unsigned long pos = 0;	/*byte position in the out buffer */
@@ -722,9 +683,9 @@ static upng_error uz_inflate_data(upng_t* upng, ucvector* out, const unsigned ch
 			SET_ERROR(upng, UPNG_EMALFORMED);
 			return upng->error;
 		} else if (btype == 0) {
-			inflate_nocmp(upng, out, &in[inpos], &bp, &pos, insize);	/*no compression */
+			inflate_nocmp(upng, out, outsize, &in[inpos], &bp, &pos, insize);	/*no compression */
 		} else {
-			inflate_huffman(upng, out, &in[inpos], &bp, &pos, insize, btype);	/*compression, btype 01 or 10 */
+			inflate_huffman(upng, out, outsize, &in[inpos], &bp, &pos, insize, btype);	/*compression, btype 01 or 10 */
 		}
 
 		/* stop if an error has occured */
@@ -734,19 +695,11 @@ static upng_error uz_inflate_data(upng_t* upng, ucvector* out, const unsigned ch
 		}
 	}
 
-	/* resize output buffer accordingly */
-	error = ucvector_resize(out, pos);
-	if (error != UPNG_EOK) {
-		SET_ERROR(upng, error);
-	}
-
 	return upng->error;
 }
 
-upng_error uz_inflate(upng_t* upng, unsigned char **out, unsigned long *outsize, const unsigned char *in, unsigned long insize)
+upng_error uz_inflate(upng_t* upng, unsigned char *out, unsigned long outsize, const unsigned char *in, unsigned long insize)
 {
-	ucvector outv;
-
 	/* we require two bytes for the zlib data header */
 	if (insize < 2) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
@@ -772,12 +725,7 @@ upng_error uz_inflate(upng_t* upng, unsigned char **out, unsigned long *outsize,
 	}
 
 	/* create output buffer */
-	ucvector_init_buffer(&outv, *out, *outsize);
-	uz_inflate_data(upng, &outv, in, insize, 2);
-
-	/* store output */
-	*out = outv.data;
-	*outsize = outv.size;
+	uz_inflate_data(upng, out, outsize, in, insize, 2);
 
 	return upng->error;
 }
