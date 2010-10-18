@@ -37,10 +37,10 @@ int main(int argc, char** argv) {
 
 	for (y = 0; y != height; ++y) {
 		for (x = 0; x != width; ++x) {
-			putc(upng_get_buffer(upng)[(height - y) * width * 4 + x * 4 + 0], fh);
-			putc(upng_get_buffer(upng)[(height - y) * width * 4 + x * 4 + 1], fh);
-			putc(upng_get_buffer(upng)[(height - y) * width * 4 + x * 4 + 2], fh);
-			putc(upng_get_buffer(upng)[(height - y) * width * 4 + x * 4 + 3], fh);
+			putc(upng_get_buffer(upng)[(height - y - 1) * width * 4 + x * 4 + 0], fh);
+			putc(upng_get_buffer(upng)[(height - y - 1) * width * 4 + x * 4 + 1], fh);
+			putc(upng_get_buffer(upng)[(height - y - 1) * width * 4 + x * 4 + 2], fh);
+			putc(upng_get_buffer(upng)[(height - y - 1) * width * 4 + x * 4 + 3], fh);
 		}
 	}
 
