@@ -3,10 +3,14 @@
 
 #include "upng.h"
 
+#define HI(w) (((w) >> 8) & 0xFF)
+#define LO(w) ((w) & 0xFF)
+
 int main(int argc, char** argv) {
 	FILE* fh;
 	upng_error error;
 	upng_info* info;
+	unsigned width, height;
 	unsigned x, y;
 
 	if (argc <= 2) {
@@ -20,20 +24,23 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	printf("size:	%ux%ux%u (%u)\n", upng_get_width(info), upng_get_height(info), upng_get_bpp(info), upng_get_size(info));
+	width = upng_get_width(info);
+	height = upng_get_height(info);
+
+	printf("size:	%ux%ux%u (%u)\n", width, height, upng_get_bpp(info), upng_get_size(info));
 	printf("format:	%u\n", upng_get_format(info));
 
 	fh = fopen(argv[2], "wb");
 	fprintf(fh, "%c%c%c", 0, 0, 2);
 	fprintf(fh, "%c%c%c%c%c", 0, 0, 0, 0, 0);
-	fprintf(fh, "%c%c%c%c%c%c%c%c%c%c", 0, 0, 0, 0, upng_get_width(info), 0, upng_get_height(info), 0, 32, 8);
+	fprintf(fh, "%c%c%c%c%c%c%c%c%c%c", 0, 0, 0, 0, LO(width), HI(width), LO(height), HI(height), 32, 8);
 
-	for (y = 0; y != upng_get_height(info); ++y) {
-		for (x = 0; x != upng_get_width(info); ++x) {
-			putc(upng_get_buffer(info)[(upng_get_height(info) - y) * upng_get_width(info) * 4 + x * 4 + 0], fh);
-			putc(upng_get_buffer(info)[(upng_get_height(info) - y) * upng_get_width(info) * 4 + x * 4 + 1], fh);
-			putc(upng_get_buffer(info)[(upng_get_height(info) - y) * upng_get_width(info) * 4 + x * 4 + 2], fh);
-			putc(upng_get_buffer(info)[(upng_get_height(info) - y) * upng_get_width(info) * 4 + x * 4 + 3], fh);
+	for (y = 0; y != height; ++y) {
+		for (x = 0; x != width; ++x) {
+			putc(upng_get_buffer(info)[(height - y) * width * 4 + x * 4 + 0], fh);
+			putc(upng_get_buffer(info)[(height - y) * width * 4 + x * 4 + 1], fh);
+			putc(upng_get_buffer(info)[(height - y) * width * 4 + x * 4 + 2], fh);
+			putc(upng_get_buffer(info)[(height - y) * width * 4 + x * 4 + 3], fh);
 		}
 	}
 

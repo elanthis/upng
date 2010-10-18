@@ -28,6 +28,12 @@ freely, subject to the following restrictions:
 
 #include "upng.h"
 
+#define FIRST_LENGTH_CODE_INDEX 257
+#define LAST_LENGTH_CODE_INDEX 285
+#define NUM_DEFLATE_CODE_SYMBOLS 288	/*256 literals, the end code, some length codes, and 2 unused codes */
+#define NUM_DISTANCE_SYMBOLS 32	/*the distance codes have their own symbols, 30 used, 2 unused */
+#define NUM_CODE_LENGTH_CODES 19	/*the code length codes. 0-15: code lengths, 16: copy previous 3-6 times, 17: 3-10 zeros, 18: 11-138 zeros */
+
 typedef struct ucvector {
 	unsigned char *data;
 	unsigned long size;	/*used size */
@@ -40,111 +46,13 @@ typedef struct uivector {
 	unsigned long allocsize;	/*allocated size in bytes */
 } uivector;
 
-void uivector_cleanup(uivector* p)
-{
-	p->size = p->allocsize = 0;
-	free(p->data);
-	p->data = NULL;
-}
-
-upng_error uivector_resize(uivector* p, unsigned long size)
-{				/*returns 1 if success, 0 if failure ==> nothing done */
-	if (size* sizeof(unsigned) > p->allocsize) {
-		unsigned long newsize = size* sizeof(unsigned)* 2;
-		void *data = realloc(p->data, newsize);
-		if (data) {
-			p->allocsize = newsize;
-			p->data = (unsigned *)data;
-			p->size = size;
-		} else
-			return UPNG_ENOMEM;
-	} else
-		p->size = size;
-	return UPNG_EOK;
-}
-
-upng_error uivector_resizev(uivector* p, unsigned long size, unsigned value)
-{				/*resize and give all new elements the value */
-	unsigned long oldsize = p->size, i;
-	if (uivector_resize(p, size) != UPNG_EOK)
-		return UPNG_ENOMEM;
-	for (i = oldsize; i < size; i++)
-		p->data[i] = value;
-	return UPNG_EOK;
-}
-
-void uivector_init(uivector* p)
-{
-	p->data = NULL;
-	p->size = p->allocsize = 0;
-}
-
-void ucvector_cleanup(void *p)
-{
-	((ucvector *) p)->size = ((ucvector *) p)->allocsize = 0;
-	free(((ucvector *) p)->data);
-	((ucvector *) p)->data = NULL;
-}
-
-upng_error ucvector_resize(ucvector* p, unsigned long size)
-{				/*returns 1 if success, 0 if failure ==> nothing done */
-	if (size* sizeof(unsigned char) > p->allocsize) {
-		unsigned long newsize = size* sizeof(unsigned char)* 2;
-		void *data = realloc(p->data, newsize);
-		if (data) {
-			p->allocsize = newsize;
-			p->data = (unsigned char *)data;
-			p->size = size;
-		} else
-			return UPNG_ENOMEM;	/*error: not enough memory */
-	} else
-		p->size = size;
-	return UPNG_EOK;
-}
-
-upng_error ucvector_resizev(ucvector* p, unsigned long size, unsigned char value)
-{				/*resize and give all new elements the value */
-	unsigned long oldsize = p->size, i;
-	if (ucvector_resize(p, size) != UPNG_EOK)
-		return UPNG_ENOMEM;
-	for (i = oldsize; i < size; i++)
-		p->data[i] = value;
-	return UPNG_EOK;
-}
-
-void ucvector_init(ucvector* p)
-{
-	p->data = NULL;
-	p->size = p->allocsize = 0;
-}
-
-/*you can both convert from vector to buffer&size and vica versa*/
-void ucvector_init_buffer(ucvector* p, unsigned char *buffer, unsigned long size)
-{
-	p->data = buffer;
-	p->allocsize = p->size = size;
-}
-
-static unsigned char read_bit(unsigned long *bitpointer, const unsigned char *bitstream)
-{
-	unsigned char result = (unsigned char)((bitstream[(*bitpointer) >> 3] >> ((*bitpointer) & 0x7)) & 1);
-	(*bitpointer)++;
-	return result;
-}
-
-static unsigned read_bits(unsigned long *bitpointer, const unsigned char *bitstream, unsigned long nbits)
-{
-	unsigned result = 0, i;
-	for (i = 0; i < nbits; i++)
-		result += ((unsigned)read_bit(bitpointer, bitstream)) << i;
-	return result;
-}
-
-#define FIRST_LENGTH_CODE_INDEX 257
-#define LAST_LENGTH_CODE_INDEX 285
-#define NUM_DEFLATE_CODE_SYMBOLS 288	/*256 literals, the end code, some length codes, and 2 unused codes */
-#define NUM_DISTANCE_SYMBOLS 32	/*the distance codes have their own symbols, 30 used, 2 unused */
-#define NUM_CODE_LENGTH_CODES 19	/*the code length codes. 0-15: code lengths, 16: copy previous 3-6 times, 17: 3-10 zeros, 18: 11-138 zeros */
+typedef struct huffman_tree {
+	uivector tree2d;
+	uivector tree1d;
+	uivector lengths;	/*the lengths of the codes of the 1d-tree */
+	unsigned maxbitlen;	/*maximum number of bits a single code can get */
+	unsigned numcodes;	/*number of symbols in the alphabet = number of codes */
+} huffman_tree;
 
 static const unsigned LENGTHBASE[29]	/*the base lengths represented by codes 257-285 */
     = { 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59,
@@ -170,22 +78,91 @@ static const unsigned DISTANCEEXTRA[30]	/*the extra bits of backwards distances 
 static const unsigned CLCL[NUM_CODE_LENGTH_CODES]	/*the order in which "code length alphabet code lengths" are stored, out of this the huffman tree of the dynamic huffman tree lengths is generated */
 = { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
 
-typedef struct huffman_tree {
-	uivector tree2d;
-	uivector tree1d;
-	uivector lengths;	/*the lengths of the codes of the 1d-tree */
-	unsigned maxbitlen;	/*maximum number of bits a single code can get */
-	unsigned numcodes;	/*number of symbols in the alphabet = number of codes */
-} huffman_tree;
+static void uivector_cleanup(uivector* p)
+{
+	p->size = p->allocsize = 0;
+	free(p->data);
+	p->data = NULL;
+}
 
-static void huffman_tree_init(huffman_tree * tree)
+static upng_error uivector_resize(uivector* p, unsigned long size)
+{				/*returns 1 if success, 0 if failure ==> nothing done */
+	if (size* sizeof(unsigned) > p->allocsize) {
+		unsigned long newsize = size* sizeof(unsigned)* 2;
+		void *data = realloc(p->data, newsize);
+		if (data) {
+			p->allocsize = newsize;
+			p->data = (unsigned *)data;
+			p->size = size;
+		} else
+			return UPNG_ENOMEM;
+	} else
+		p->size = size;
+	return UPNG_EOK;
+}
+
+static upng_error uivector_resizev(uivector* p, unsigned long size, unsigned value)
+{				/*resize and give all new elements the value */
+	unsigned long oldsize = p->size, i;
+	if (uivector_resize(p, size) != UPNG_EOK)
+		return UPNG_ENOMEM;
+	for (i = oldsize; i < size; i++)
+		p->data[i] = value;
+	return UPNG_EOK;
+}
+
+static void uivector_init(uivector* p)
+{
+	p->data = NULL;
+	p->size = p->allocsize = 0;
+}
+
+static upng_error ucvector_resize(ucvector* p, unsigned long size)
+{				/*returns 1 if success, 0 if failure ==> nothing done */
+	if (size* sizeof(unsigned char) > p->allocsize) {
+		unsigned long newsize = size* sizeof(unsigned char)* 2;
+		void *data = realloc(p->data, newsize);
+		if (data) {
+			p->allocsize = newsize;
+			p->data = (unsigned char *)data;
+			p->size = size;
+		} else
+			return UPNG_ENOMEM;	/*error: not enough memory */
+	} else
+		p->size = size;
+	return UPNG_EOK;
+}
+
+/*you can both convert from vector to buffer&size and vica versa*/
+static void ucvector_init_buffer(ucvector* p, unsigned char *buffer, unsigned long size)
+{
+	p->data = buffer;
+	p->allocsize = p->size = size;
+}
+
+static unsigned char read_bit(unsigned long *bitpointer, const unsigned char *bitstream)
+{
+	unsigned char result = (unsigned char)((bitstream[(*bitpointer) >> 3] >> ((*bitpointer) & 0x7)) & 1);
+	(*bitpointer)++;
+	return result;
+}
+
+static unsigned read_bits(unsigned long *bitpointer, const unsigned char *bitstream, unsigned long nbits)
+{
+	unsigned result = 0, i;
+	for (i = 0; i < nbits; i++)
+		result += ((unsigned)read_bit(bitpointer, bitstream)) << i;
+	return result;
+}
+
+static void huffman_tree_init(huffman_tree* tree)
 {
 	uivector_init(&tree->tree2d);
 	uivector_init(&tree->tree1d);
 	uivector_init(&tree->lengths);
 }
 
-static void huffman_tree_cleanup(huffman_tree * tree)
+static void huffman_tree_cleanup(huffman_tree* tree)
 {
 	uivector_cleanup(&tree->tree2d);
 	uivector_cleanup(&tree->tree1d);
@@ -193,7 +170,7 @@ static void huffman_tree_cleanup(huffman_tree * tree)
 }
 
 /*the tree representation used by the info. return value is error*/
-static unsigned huffman_tree_create(huffman_tree * tree)
+static unsigned huffman_tree_create(huffman_tree* tree)
 {
 	unsigned nodefilled = 0;	/*up to which node it is filled */
 	unsigned treepos = 0;	/*position in the tree (1 of the numcodes columns) */
@@ -231,7 +208,7 @@ static unsigned huffman_tree_create(huffman_tree * tree)
 	return 0;
 }
 
-static unsigned huffman_tree_create_lengths2(huffman_tree * tree)
+static unsigned huffman_tree_create_lengths2(huffman_tree* tree)
 {				/*given that numcodes, lengths and maxbitlen are already filled in correctly. return value is error. */
 	uivector blcount;
 	uivector nextcode;
@@ -267,7 +244,7 @@ static unsigned huffman_tree_create_lengths2(huffman_tree * tree)
 }
 
 /*given the code lengths (as stored in the PNG file), generate the tree as defined by Deflate. maxbitlen is the maximum bits that a code in the tree can have. return value is error.*/
-static unsigned huffman_tree_create_lengths(huffman_tree * tree, const unsigned *bitlen, unsigned long numcodes, unsigned maxbitlen)
+static unsigned huffman_tree_create_lengths(huffman_tree* tree, const unsigned *bitlen, unsigned long numcodes, unsigned maxbitlen)
 {
 	unsigned i;
 	if (uivector_resize(&tree->lengths, numcodes) != UPNG_EOK)
@@ -280,7 +257,7 @@ static unsigned huffman_tree_create_lengths(huffman_tree * tree, const unsigned 
 }
 
 /*get the tree of a deflated block with fixed tree, as specified in the deflate specification*/
-static unsigned generate_fixed_tree(huffman_tree * tree)
+static unsigned generate_fixed_tree(huffman_tree* tree)
 {
 	unsigned i, error = 0;
 	uivector bitlen;
@@ -306,7 +283,7 @@ static unsigned generate_fixed_tree(huffman_tree * tree)
 	return error;
 }
 
-static unsigned generate_distance_tree(huffman_tree * tree)
+static unsigned generate_distance_tree(huffman_tree* tree)
 {
 	unsigned i, error = 0;
 	uivector bitlen;
@@ -329,7 +306,7 @@ if decoded is true, then result contains the symbol, otherwise it contains somet
 bit is the bit that was just read from the stream
 you have to decode a full symbol (let the decode function return true) before you can try to decode another one, otherwise the state isn't reset
 return value is error.*/
-static unsigned huffman_tree_decode(const huffman_tree * tree, unsigned *decoded, unsigned *result, unsigned *treepos, unsigned char bit)
+static unsigned huffman_tree_decode(const huffman_tree* tree, unsigned *decoded, unsigned *result, unsigned *treepos, unsigned char bit)
 {
 	if ((*treepos) >= tree->numcodes)
 		return 11;	/*error: it appeared outside the codetree */
@@ -345,7 +322,7 @@ static unsigned huffman_tree_decode(const huffman_tree * tree, unsigned *decoded
 	return 0;
 }
 
-static unsigned huffman_decode_symbol(unsigned int *error, const unsigned char *in, unsigned long *bp, const huffman_tree * codetree, unsigned long inlength)
+static unsigned huffman_decode_symbol(unsigned int *error, const unsigned char *in, unsigned long *bp, const huffman_tree* codetree, unsigned long inlength)
 {
 	unsigned treepos = 0, decoded, ct;
 	for (;;) {
@@ -364,7 +341,7 @@ static unsigned huffman_decode_symbol(unsigned int *error, const unsigned char *
 }
 
 /*get the tree of a deflated block with fixed tree, as specified in the deflate specification*/
-static void get_tree_inflate_fixed(huffman_tree * tree, huffman_tree * treeD)
+static void get_tree_inflate_fixed(huffman_tree* tree, huffman_tree* treeD)
 {
 	/*error checking not done, this is fixed stuff, it works, it doesn't depend on the image */
 	generate_fixed_tree(tree);
@@ -372,7 +349,7 @@ static void get_tree_inflate_fixed(huffman_tree * tree, huffman_tree * treeD)
 }
 
 /*get the tree of a deflated block with dynamic tree, the tree itself is also Huffman compressed with a known tree*/
-static unsigned get_tree_inflate_dynamic(huffman_tree * codetree, huffman_tree * codetreeD, huffman_tree * codelengthcodetree, const unsigned char *in, unsigned long *bp, unsigned long inlength)
+static unsigned get_tree_inflate_dynamic(huffman_tree* codetree, huffman_tree* codetreeD, huffman_tree* codelengthcodetree, const unsigned char *in, unsigned long *bp, unsigned long inlength)
 {
 	/*make sure that length values that aren't filled in will be 0, or a wrong tree will be generated */
 	/*C-code note: use no "return" between ctor and dtor of an uivector! */
@@ -720,8 +697,5 @@ unsigned uz_inflate(unsigned char **out, unsigned long *outsize, const unsigned 
 	error = uz_inflate_data(&outv, in, insize, 2);
 	*out = outv.data;
 	*outsize = outv.size;
-	if (error)
-		return error;
-
 	return error;
 }
