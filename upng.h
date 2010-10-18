@@ -33,8 +33,7 @@ typedef enum upng_error {
 	UPNG_ENOTFOUND		= 2,
 	UPNG_ENOTPNG		= 3,
 	UPNG_EMALFORMED		= 4,
-	UPNG_EUNSUPPORTED	= 5,
-	UPNG_EBADCHECKSUM	= 6
+	UPNG_EUNSUPPORTED	= 5
 } upng_error;
 
 typedef enum upng_format {
