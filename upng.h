@@ -77,28 +77,4 @@ unsigned	upng_get_format		(const upng_t* upng);
 const unsigned char*	upng_get_buffer		(const upng_t* upng);
 unsigned				upng_get_size		(const upng_t* upng);
 
-/* internal structures and data types */
-
-typedef enum upng_color {
-	UPNG_GREY		= 0,
-	UPNG_RGB		= 2,
-	UPNG_GREY_ALPHA	= 4,
-	UPNG_RGBA		= 6
-} upng_color;
-
-struct upng_t {
-	unsigned		width;
-	unsigned		height;
-
-	upng_color		color_type;
-	unsigned		color_depth;
-	upng_format		format;
-
-	unsigned char*	buffer;
-	unsigned long	size;
-
-	upng_error		error;
-	unsigned		error_line;
-};
-
 #endif /*defined(UPNG_H)*/
