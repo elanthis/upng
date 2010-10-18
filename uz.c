@@ -25,6 +25,7 @@ freely, subject to the following restrictions:
 */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "upng.h"
 
@@ -82,28 +83,30 @@ static void uivector_cleanup(uivector* p)
 }
 
 static upng_error uivector_resize(uivector* p, unsigned long size)
-{				/*returns 1 if success, 0 if failure ==> nothing done */
-	if (size* sizeof(unsigned) > p->allocsize) {
-		unsigned long newsize = size* sizeof(unsigned)* 2;
-		void *data = realloc(p->data, newsize);
+{
+	if (size > p->allocsize) {
+		unsigned long newsize = size * 2;
+		void *data = realloc(p->data, newsize * sizeof(unsigned));
 		if (data) {
 			p->allocsize = newsize;
-			p->data = (unsigned *)data;
+			p->data = (unsigned*)data;
 			p->size = size;
-		} else
+		} else {
 			return UPNG_ENOMEM;
-	} else
+		}
+	} else {
 		p->size = size;
+	}
 	return UPNG_EOK;
 }
 
 static upng_error uivector_resizev(uivector* p, unsigned long size, unsigned value)
-{				/*resize and give all new elements the value */
-	unsigned long oldsize = p->size, i;
-	if (uivector_resize(p, size) != UPNG_EOK)
+{
+	unsigned long oldsize = p->size;
+	if (uivector_resize(p, size) != UPNG_EOK) {
 		return UPNG_ENOMEM;
-	for (i = oldsize; i < size; i++)
-		p->data[i] = value;
+	}
+	memset(p->data + oldsize, 0, (size - oldsize) * sizeof(unsigned));
 	return UPNG_EOK;
 }
 

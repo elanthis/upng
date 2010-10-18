@@ -45,6 +45,8 @@ freely, subject to the following restrictions:
 #define upng_chunk_type(chunk) MAKE_DWORD_PTR((chunk) + 4)
 #define upng_chunk_critical(chunk) (((chunk)[4] & 32) == 0)
 
+extern	upng_error	uz_inflate			(upng_t* decoder, unsigned char* out, unsigned long outsize, const unsigned char* in, unsigned long insize);
+
 /*Paeth predicter, used by PNG filter type 4*/
 static int paeth_predictor(int a, int b, int c)
 {
