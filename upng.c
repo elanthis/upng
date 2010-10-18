@@ -604,7 +604,6 @@ static upng_error uz_inflate_data(upng_t* upng, unsigned char* out, unsigned lon
 	unsigned long pos = 0;	/*byte position in the out buffer */
 
 	unsigned done = 0;
-	upng_error error;
 
 	while (done == 0) {
 		unsigned btype;
@@ -632,7 +631,6 @@ static upng_error uz_inflate_data(upng_t* upng, unsigned char* out, unsigned lon
 		/* stop if an error has occured */
 		if (upng->error != UPNG_EOK) {
 			return upng->error;
-			return error;
 		}
 	}
 
@@ -687,7 +685,7 @@ static int paeth_predictor(int a, int b, int c)
 		return c;
 }
 
-static upng_error unfilter_scanline(unsigned char *recon, const unsigned char *scanline, const unsigned char *precon, unsigned long bytewidth, unsigned char filterType, unsigned long length)
+static void unfilter_scanline(upng_t* upng, unsigned char *recon, const unsigned char *scanline, const unsigned char *precon, unsigned long bytewidth, unsigned char filterType, unsigned long length)
 {
 	/*
 	   For PNG filter method 0
@@ -744,12 +742,12 @@ static upng_error unfilter_scanline(unsigned char *recon, const unsigned char *s
 		}
 		break;
 	default:
-		return UPNG_EUNSUPPORTED;	/*error: unexisting filter type given */
+		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		break;
 	}
-	return UPNG_EOK;
 }
 
-static upng_error unfilter(unsigned char *out, const unsigned char *in, unsigned w, unsigned h, unsigned bpp)
+static void unfilter(upng_t* upng, unsigned char *out, const unsigned char *in, unsigned w, unsigned h, unsigned bpp)
 {
 	/*
 	   For PNG filter method 0
@@ -770,15 +768,13 @@ static upng_error unfilter(unsigned char *out, const unsigned char *in, unsigned
 		unsigned long inindex = (1 + linebytes) * y;	/*the extra filterbyte added to each row */
 		unsigned char filterType = in[inindex];
 
-		unsigned error = unfilter_scanline(&out[outindex], &in[inindex + 1], prevline,
-						  bytewidth, filterType, linebytes);
-		if (error)
-			return error;
+		unfilter_scanline(upng, &out[outindex], &in[inindex + 1], prevline, bytewidth, filterType, linebytes);
+		if (upng->error != UPNG_EOK) {
+			return;
+		}
 
 		prevline = &out[outindex];
 	}
-
-	return UPNG_EOK;
 }
 
 static void remove_padding_bits(unsigned char *out, const unsigned char *in, unsigned long olinebits, unsigned long ilinebits, unsigned h)
@@ -809,24 +805,26 @@ static void remove_padding_bits(unsigned char *out, const unsigned char *in, uns
 }
 
 /*out must be buffer big enough to contain full image, and in must contain the full decompressed data from the IDAT chunks*/
-static upng_error post_process_scanlines(unsigned char *out, unsigned char *in, const upng_t* info_png)
+static void post_process_scanlines(upng_t* upng, unsigned char *out, unsigned char *in, const upng_t* info_png)
 {
 	unsigned bpp = upng_get_bpp(info_png);
 	unsigned w = info_png->width;
 	unsigned h = info_png->height;
-	upng_error error = 0;
-	if (bpp == 0)
-		return UPNG_EUNSUPPORTED;
+
+	if (bpp == 0) {
+		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		return;
+	}
 
 	if (bpp < 8 && w * bpp != ((w * bpp + 7) / 8) * 8) {
-		error = unfilter(in, in, w, h, bpp);
-		if (error)
-			return error;
+		unfilter(upng, in, in, w, h, bpp);
+		if (upng->error != UPNG_EOK) {
+			return;
+		}
 		remove_padding_bits(out, in, w * bpp, ((w * bpp + 7) / 8) * 8, h);
-	} else
-		error = unfilter(out, in, w, h, bpp);	/*we can immediatly filter into the out buffer, no other steps needed */
-
-	return error;
+	} else {
+		unfilter(upng, out, in, w, h, bpp);	/*we can immediatly filter into the out buffer, no other steps needed */
+	}
 }
 
 /*read the information from the header and store it in the upng_Info. return value is error*/
@@ -972,7 +970,7 @@ upng_error upng_decode(upng_t* upng, const unsigned char *in, unsigned long size
 	}
 
 	/* scan through the chunks again, this time copying the values into
-	 * our compressed.  there's no reason to validate anything a second time. */
+	 * our compressed buffer.  there's no reason to validate anything a second time. */
 	chunk = in + 33;
 	while (chunk < in + size) {
 		unsigned long length;
@@ -1023,20 +1021,17 @@ upng_error upng_decode(upng_t* upng, const unsigned char *in, unsigned long size
 	}
 
 	/* unfilter scanlines */
-	error = post_process_scanlines(upng->buffer, inflated, upng);
-	if (error != UPNG_EOK) {
-		free(inflated);
+	post_process_scanlines(upng, upng->buffer, inflated, upng);
+	free(inflated);
+
+	if (upng->error != UPNG_EOK) {
 		free(upng->buffer);
 		upng->buffer = NULL;
 		upng->size = 0;
 		SET_ERROR(upng, error);
-		return upng->error;
 	}
 
-	/* free the inflated, filtered data */
-	free(inflated);
-
-	return UPNG_EOK;
+	return upng->error;
 }
 
 upng_error upng_decode_file(upng_t* upng, const char *filename)
@@ -1184,7 +1179,7 @@ upng_format upng_get_format(const upng_t* upng)
 			return UPNG_BADFORMAT;
 		}
 	default:
-		return 0;
+		return UPNG_BADFORMAT;
 	}
 }
 
