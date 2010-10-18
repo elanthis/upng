@@ -20,8 +20,7 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	printf("size:	%ux%u\n", upng_get_width(info), upng_get_height(info));
-	printf("bpp:	%u\n", upng_get_bpp(info));
+	printf("size:	%ux%ux%u (%u)\n", upng_get_width(info), upng_get_height(info), upng_get_bpp(info), upng_get_size(info));
 	printf("format:	%u\n", upng_get_format(info));
 
 	fh = fopen(argv[2], "wb");

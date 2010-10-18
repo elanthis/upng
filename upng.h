@@ -37,13 +37,6 @@ typedef enum upng_error {
 	UPNG_EBADCHECKSUM	= 6
 } upng_error;
 
-typedef enum upng_color {
-	UPNG_GREY		= 0,
-	UPNG_RGB		= 2,
-	UPNG_GREY_ALPHA	= 4,
-	UPNG_RGBA		= 6
-} upng_color;
-
 typedef enum upng_format {
 	UPNG_BADFORMAT,
 
@@ -64,7 +57,7 @@ typedef enum upng_format {
 
 typedef struct upng_info upng_info;
 
-unsigned	uzlib_decompress	(unsigned char** out, unsigned long* outsize, const unsigned char* in, unsigned long insize);
+unsigned	uz_inflate			(unsigned char** out, unsigned long* outsize, const unsigned char* in, unsigned long insize);
 
 upng_info*	upng_new			(void);
 void		upng_free			(upng_info* decoder);
