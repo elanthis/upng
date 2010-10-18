@@ -1,4 +1,6 @@
 test
 view
 *.o
-foo.tga
+*.sh
+*.png
+*.tga
