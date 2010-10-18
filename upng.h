@@ -57,8 +57,6 @@ typedef enum upng_format {
 
 typedef struct upng_info upng_info;
 
-unsigned	uz_inflate			(unsigned char** out, unsigned long* outsize, const unsigned char* in, unsigned long insize);
-
 upng_info*	upng_new			(void);
 void		upng_free			(upng_info* decoder);
 
@@ -76,7 +74,33 @@ unsigned	upng_get_height		(const upng_info* info);
 unsigned	upng_get_bpp		(const upng_info* info);
 unsigned	upng_get_format		(const upng_info* info);
 
+upng_error	uz_inflate			(upng_info* decoder, unsigned char** out, unsigned long* outsize, const unsigned char* in, unsigned long insize);
+
 const unsigned char*	upng_get_buffer		(const upng_info* info);
 unsigned				upng_get_size		(const upng_info* info);
+
+/* internal structures and data types */
+
+typedef enum upng_color {
+	UPNG_GREY		= 0,
+	UPNG_RGB		= 2,
+	UPNG_GREY_ALPHA	= 4,
+	UPNG_RGBA		= 6
+} upng_color;
+
+struct upng_info {
+	unsigned		width;
+	unsigned		height;
+
+	upng_color		color_type;
+	unsigned		color_depth;
+	upng_format		format;
+
+	unsigned char*	buffer;
+	unsigned long	size;
+
+	upng_error		error;
+	unsigned		error_line;
+};
 
 #endif /*defined(UPNG_H)*/

@@ -45,28 +45,6 @@ freely, subject to the following restrictions:
 #define upng_chunk_type(chunk) MAKE_DWORD_PTR((chunk) + 4)
 #define upng_chunk_critical(chunk) (((chunk)[4] & 32) == 0)
 
-typedef enum upng_color {
-	UPNG_GREY		= 0,
-	UPNG_RGB		= 2,
-	UPNG_GREY_ALPHA	= 4,
-	UPNG_RGBA		= 6
-} upng_color;
-
-struct upng_info {
-	unsigned		width;
-	unsigned		height;
-
-	upng_color		color_type;
-	unsigned		color_depth;
-	upng_format		format;
-
-	unsigned char*	buffer;
-	unsigned long	size;
-
-	upng_error		error;
-	unsigned		error_line;
-};
-
 /*Paeth predicter, used by PNG filter type 4*/
 static int paeth_predictor(int a, int b, int c)
 {
@@ -398,11 +376,10 @@ upng_error upng_decode(upng_info* info, const unsigned char *in, unsigned long s
 	}
 
 	/* decompress image data */
-	error = uz_inflate(&inflated, &inflated_size, compressed, compressed_size);
+	error = uz_inflate(info, &inflated, &inflated_size, compressed, compressed_size);
 	if (error != UPNG_EOK) {
 		free(compressed);
 		free(inflated);
-		SET_ERROR(info, error);
 		return info->error;
 	}
 

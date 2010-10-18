@@ -31,8 +31,10 @@ freely, subject to the following restrictions:
 #define FIRST_LENGTH_CODE_INDEX 257
 #define LAST_LENGTH_CODE_INDEX 285
 #define NUM_DEFLATE_CODE_SYMBOLS 288	/*256 literals, the end code, some length codes, and 2 unused codes */
-#define NUM_DISTANCE_SYMBOLS 32	/*the distance codes have their own symbols, 30 used, 2 unused */
 #define NUM_CODE_LENGTH_CODES 19	/*the code length codes. 0-15: code lengths, 16: copy previous 3-6 times, 17: 3-10 zeros, 18: 11-138 zeros */
+#define NUM_DISTANCE_SYMBOLS 32	/*the distance codes have their own symbols, 30 used, 2 unused */
+
+#define SET_ERROR(info,code) do { (info)->error = (code); (info)->error_line = __LINE__; } while (0)
 
 typedef struct ucvector {
 	unsigned char *data;
@@ -500,7 +502,7 @@ static unsigned get_tree_inflate_dynamic(huffman_tree* codetree, huffman_tree* c
 }
 
 /*inflate a block with dynamic of fixed Huffman tree*/
-static unsigned inflate_huffman(ucvector * out, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength, unsigned btype)
+static unsigned inflate_huffman(ucvector* out, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength, unsigned btype)
 {
 	unsigned endreached = 0, error = 0;
 	huffman_tree codetree;	/*287, the code tree for Huffman codes */
@@ -591,7 +593,7 @@ static unsigned inflate_huffman(ucvector * out, const unsigned char *in, unsigne
 	return error;
 }
 
-static unsigned inflate_nocmp(ucvector * out, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength)
+static unsigned inflate_nocmp(ucvector* out, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength)
 {
 	/*go to first boundary of byte */
 	unsigned long p;
@@ -629,73 +631,88 @@ static unsigned inflate_nocmp(ucvector * out, const unsigned char *in, unsigned 
 }
 
 /*inflate the deflated data (cfr. deflate spec); return value is the error*/
-static unsigned uz_inflate_data(ucvector * out, const unsigned char *in, unsigned long insize, unsigned long inpos)
+static upng_error uz_inflate_data(upng_info* info, ucvector* out, const unsigned char *in, unsigned long insize, unsigned long inpos)
 {
 	unsigned long bp = 0;	/*bit pointer in the "in" data, current byte is bp >> 3, current bit is bp & 0x7 (from lsb to msb of the byte) */
-	unsigned BFINAL = 0;
 	unsigned long pos = 0;	/*byte position in the out buffer */
 
-	unsigned error = 0;
+	unsigned done = 0;
+	upng_error error;
 
-	while (!BFINAL) {
-		unsigned BTYPE;
-		if ((bp >> 3) >= insize)
-			return 52;	/*error, bit pointer will jump past memory */
-		BFINAL = read_bit(&bp, &in[inpos]);
-		BTYPE = 1 * read_bit(&bp, &in[inpos]);
-		BTYPE += 2 * read_bit(&bp, &in[inpos]);
+	while (done == 0) {
+		unsigned btype;
 
-		if (BTYPE == 3)
-			return 20;	/*error: invalid BTYPE */
-		else if (BTYPE == 0)
+		/* ensure next bit doesn't point past the end of the buffer */
+		if ((bp >> 3) >= insize) {
+			SET_ERROR(info, UPNG_EMALFORMED);
+			return info->error;
+		}
+
+		/* read block control bits */
+		done = read_bit(&bp, &in[inpos]);
+		btype = read_bit(&bp, &in[inpos]) | (read_bit(&bp, &in[inpos]) << 1);
+
+		/* process control type appropriateyly */
+		if (btype == 3) {
+			SET_ERROR(info, UPNG_EMALFORMED);
+			return info->error;
+		} else if (btype == 0) {
 			error = inflate_nocmp(out, &in[inpos], &bp, &pos, insize);	/*no compression */
-		else
-			error = inflate_huffman(out, &in[inpos], &bp, &pos, insize, BTYPE);	/*compression, BTYPE 01 or 10 */
-		if (error)
+		} else {
+			error = inflate_huffman(out, &in[inpos], &bp, &pos, insize, btype);	/*compression, btype 01 or 10 */
+		}
+
+		/* stop if an error has occured */
+		if (info->error != UPNG_EOK) {
+			return info->error;
 			return error;
+		}
 	}
 
-	if (ucvector_resize(out, pos) != UPNG_EOK)
-		error = 9916;	/*Only now we know the true size of out, resize it to that */
+	/* resize output buffer accordingly */
+	error = ucvector_resize(out, pos);
+	if (error != UPNG_EOK) {
+		SET_ERROR(info, error);
+	}
 
-	return error;
+	return info->error;
 }
 
-unsigned uz_inflate(unsigned char **out, unsigned long *outsize, const unsigned char *in, unsigned long insize)
+upng_error uz_inflate(upng_info* info, unsigned char **out, unsigned long *outsize, const unsigned char *in, unsigned long insize)
 {
-	unsigned error = 0;
-	unsigned CM, CINFO, FDICT;
 	ucvector outv;
 
+	/* we require two bytes for the zlib data header */
 	if (insize < 2) {
-		error = 53;
-		return error;
+		SET_ERROR(info, UPNG_EMALFORMED);
+		return info->error;
 	}
-	/*error, size of zlib data too small */
-	/*read information from zlib header */
-	if ((in[0] * 256 + in[1]) % 31 != 0) {
-		error = 24;
-		return error;
-	}
-	/*error: 256 * in[0] + in[1] must be a multiple of 31, the FCHECK value is supposed to be made that way */
-	CM = in[0] & 15;
-	CINFO = (in[0] >> 4) & 15;
-	/*FCHECK = in[1] & 31; //FCHECK is already tested above */
-	FDICT = (in[1] >> 5) & 1;
-	/*FLEVEL = (in[1] >> 6) & 3; //not really important, all it does it to give a compiler warning about unused variable, we don't care what encoding setting the encoder used */
 
-	if (CM != 8 || CINFO > 7) {
-		error = 25;
-		return error;
-	}			/*error: only compression method 8: inflate with sliding window of 32k is supported by the PNG spec */
-	if (FDICT != 0) {
-		error = 26;
-		return error;
+	/* 256 * in[0] + in[1] must be a multiple of 31, the FCHECK value is supposed to be made that way */
+	if ((in[0] * 256 + in[1]) % 31 != 0) {
+		SET_ERROR(info, UPNG_EMALFORMED);
+		return info->error;
 	}
-	/*error: the specification of PNG says about the zlib stream: "The additional flags shall not specify a preset dictionary." */
-	ucvector_init_buffer(&outv, *out, *outsize);	/*ucvector-controlled version of the output buffer, for dynamic array */
-	error = uz_inflate_data(&outv, in, insize, 2);
+
+	/*error: only compression method 8: inflate with sliding window of 32k is supported by the PNG spec */
+	if ((in[0] & 15) != 8 || ((in[0] >> 4) & 15) > 7) {
+		SET_ERROR(info, UPNG_EMALFORMED);
+		return info->error;
+	}
+
+	/* the specification of PNG says about the zlib stream: "The additional flags shall not specify a preset dictionary." */
+	if (((in[1] >> 5) & 1) != 0) {
+		SET_ERROR(info, UPNG_EMALFORMED);
+		return info->error;
+	}
+
+	/* create output buffer */
+	ucvector_init_buffer(&outv, *out, *outsize);
+	uz_inflate_data(info, &outv, in, insize, 2);
+
+	/* store output */
 	*out = outv.data;
 	*outsize = outv.size;
-	return error;
+
+	return info->error;
 }
