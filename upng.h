@@ -1,5 +1,5 @@
 /*
-uPNG -- derived from uPNG version 20100808
+uPNG -- derived from LodePNG version 20100808
 
 Copyright (c) 2005-2010 Lode Vandevenne
 Copyright (c) 2010 Sean Middleditch
