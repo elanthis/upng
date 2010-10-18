@@ -26,6 +26,25 @@ freely, subject to the following restrictions:
 		3. This notice may not be removed or altered from any source
 		distribution.
 
+Features
+--------
+
+uPNG supports loading and decoding PNG images into a simple byte buffer, suitable
+for passing directly to OpenGL as texture data.
+
+uPNG does NOT support interlaced images, paletted images, and fixed-transparency.
+Checksums are NOT verified and corrupt image data may be undetected.
+
+It DOES support RGB, RGBA, greyscale, and greyscale-with-alpha images.  RGB and
+RGBA are currently only supported in 8-bit color depths, and greyscale images
+are supported in either 1-, 2-, 4-, or 8-bit color depths.
+
+WARNING: the source project that uPNG is derived from, LodePNG, did not have
+the cleanest or best documented code.  Several potential buffer overflows in the
+original source have been fixed in uPNG, but there may be more.  Do NOT use uPNG
+to load data from untrusted sources, e.g. the Web.  Doing so may open a
+remotely exploitable buffer overflow attack in your application.
+
 Installation
 ------------
 
