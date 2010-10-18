@@ -235,7 +235,8 @@ upng_error upng_inspect(upng_info* info, const unsigned char *in, unsigned long 
 	}
 
 	/* minimum length of a valid PNG file is 29 bytes
-	 * FIXME: verify this against the specification */
+	 * FIXME: verify this against the specification, or
+	 * better against the actual code below */
 	if (inlength < 29) {
 		SET_ERROR(info, UPNG_ENOTPNG);
 		return info->error;
