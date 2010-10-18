@@ -31,6 +31,7 @@ freely, subject to the following restrictions:
 
 #define FIRST_LENGTH_CODE_INDEX 257
 #define LAST_LENGTH_CODE_INDEX 285
+#define MAX_BIT_LENGTH 15
 #define NUM_DEFLATE_CODE_SYMBOLS 288	/*256 literals, the end code, some length codes, and 2 unused codes */
 #define NUM_CODE_LENGTH_CODES 19	/*the code length codes. 0-15: code lengths, 16: copy previous 3-6 times, 17: 3-10 zeros, 18: 11-138 zeros */
 #define NUM_DISTANCE_SYMBOLS 32	/*the distance codes have their own symbols, 30 used, 2 unused */
@@ -100,16 +101,6 @@ static upng_error uivector_resize(uivector* p, unsigned long size)
 	return UPNG_EOK;
 }
 
-static upng_error uivector_resizev(uivector* p, unsigned long size, unsigned value)
-{
-	unsigned long oldsize = p->size;
-	if (uivector_resize(p, size) != UPNG_EOK) {
-		return UPNG_ENOMEM;
-	}
-	memset(p->data + oldsize, 0, (size - oldsize) * sizeof(unsigned));
-	return UPNG_EOK;
-}
-
 static void uivector_init(uivector* p)
 {
 	p->data = NULL;
@@ -148,60 +139,52 @@ static void huffman_tree_cleanup(huffman_tree* tree)
 /*given the code lengths (as stored in the PNG file), generate the tree as defined by Deflate. maxbitlen is the maximum bits that a code in the tree can have. return value is error.*/
 static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const unsigned *bitlen, unsigned long numcodes, unsigned maxbitlen)
 {
-	uivector blcount;
-	uivector nextcode;
+	unsigned blcount[MAX_BIT_LENGTH];
+	unsigned nextcode[MAX_BIT_LENGTH];
 	unsigned bits, n, i;
 	unsigned nodefilled = 0;	/*up to which node it is filled */
 	unsigned treepos = 0;	/*position in the tree (1 of the numcodes columns) */
 
+	/* initialize local vectors */
+	memset(blcount, 0, sizeof(blcount));
+	memset(nextcode, 0, sizeof(nextcode));
+
+	/* initialize tree data */
+	tree->numcodes = (unsigned)numcodes;
+	tree->maxbitlen = maxbitlen;
+
+	/* allocate space for lengths table in tree */
 	if (uivector_resize(&tree->lengths, numcodes) != UPNG_EOK) {
 		SET_ERROR(upng, UPNG_ENOMEM);
 		return;
 	}
-
-	for (i = 0; i < numcodes; i++) {
-		tree->lengths.data[i] = bitlen[i];
+	if (uivector_resize(&tree->tree1d, tree->numcodes) != UPNG_EOK) {
+		SET_ERROR(upng, UPNG_ENOMEM);
+		return;
 	}
-
-	tree->numcodes = (unsigned)numcodes;	/*number of symbols */
-	tree->maxbitlen = maxbitlen;
-
-	/* initialize vectors */
-	uivector_init(&blcount);
-	uivector_init(&nextcode);
-	if (uivector_resize(&tree->tree1d, tree->numcodes) != UPNG_EOK
-			|| uivector_resizev(&blcount, tree->maxbitlen + 1, 0) != UPNG_EOK
-			|| uivector_resizev(&nextcode, tree->maxbitlen + 1, 0) != UPNG_EOK) {
-		uivector_cleanup(&blcount);
-		uivector_cleanup(&nextcode);
+	if (uivector_resize(&tree->tree2d, tree->numcodes * 2) != UPNG_EOK) {
 		SET_ERROR(upng, UPNG_ENOMEM);
 		return;
 	}
 
+	/* copy bitlen into tree */
+	memcpy(tree->lengths.data, bitlen, numcodes * sizeof(unsigned));
+
 	/*step 1: count number of instances of each code length */
 	for (bits = 0; bits < tree->numcodes; bits++) {
-		blcount.data[tree->lengths.data[bits]]++;
+		blcount[tree->lengths.data[bits]]++;
 	}
 
 	/*step 2: generate the nextcode values */
 	for (bits = 1; bits <= tree->maxbitlen; bits++) {
-		nextcode.data[bits] = (nextcode.data[bits - 1] + blcount.data[bits - 1]) << 1;
+		nextcode[bits] = (nextcode[bits - 1] + blcount[bits - 1]) << 1;
 	}
 
 	/*step 3: generate all the codes */
 	for (n = 0; n < tree->numcodes; n++) {
 		if (tree->lengths.data[n] != 0) {
-			tree->tree1d.data[n] = nextcode.data[tree->lengths.data[n]]++;
+			tree->tree1d.data[n] = nextcode[tree->lengths.data[n]]++;
 		}
-	}
-
-	/* cleanup temporary data structures */
-	uivector_cleanup(&blcount);
-	uivector_cleanup(&nextcode);
-
-	if (uivector_resize(&tree->tree2d, tree->numcodes * 2) != UPNG_EOK) {
-		SET_ERROR(upng, UPNG_ENOMEM);
-		return;
 	}
 
 	/*convert tree1d[] to tree2d[][]. In the 2D array, a value of 32767 means uninited, a value >= numcodes is an address to another bit, a value < numcodes is a code. The 2 rows are the 2 possible bit values (0 or 1), there are as many columns as codes - 1
@@ -244,45 +227,33 @@ static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const 
 /*get the tree of a deflated block with fixed tree, as specified in the deflate specification*/
 static void generate_fixed_tree(upng_t* upng, huffman_tree* tree)
 {
+	unsigned bitlen[NUM_DEFLATE_CODE_SYMBOLS];
 	unsigned i;
-	uivector bitlen;
-	uivector_init(&bitlen);
-	if (uivector_resize(&bitlen, NUM_DEFLATE_CODE_SYMBOLS) != UPNG_EOK) {
-		SET_ERROR(upng, UPNG_ENOMEM);
-		return;
-	}
 
 	/*288 possible codes: 0-255=literals, 256=endcode, 257-285=lengthcodes, 286-287=unused */
 	for (i = 0; i <= 143; i++)
-		bitlen.data[i] = 8;
+		bitlen[i] = 8;
 	for (i = 144; i <= 255; i++)
-		bitlen.data[i] = 9;
+		bitlen[i] = 9;
 	for (i = 256; i <= 279; i++)
-		bitlen.data[i] = 7;
+		bitlen[i] = 7;
 	for (i = 280; i <= 287; i++)
-		bitlen.data[i] = 8;
+		bitlen[i] = 8;
 
-	huffman_tree_create_lengths(upng, tree, bitlen.data, NUM_DEFLATE_CODE_SYMBOLS, 15);
-
-	uivector_cleanup(&bitlen);
+	huffman_tree_create_lengths(upng, tree, bitlen, NUM_DEFLATE_CODE_SYMBOLS, 15);
 }
 
 static void generate_distance_tree(upng_t* upng, huffman_tree* tree)
 {
+	unsigned bitlen[NUM_DISTANCE_SYMBOLS];
 	unsigned i;
-	uivector bitlen;
-	uivector_init(&bitlen);
-	if (uivector_resize(&bitlen, NUM_DISTANCE_SYMBOLS) != UPNG_EOK) {
-		SET_ERROR(upng, UPNG_ENOMEM);
-		return;
-	}
 
 	/*there are 32 distance codes, but 30-31 are unused */
 	for (i = 0; i < NUM_DISTANCE_SYMBOLS; i++) {
-		bitlen.data[i] = 5;
+		bitlen[i] = 5;
 	}
-	huffman_tree_create_lengths(upng, tree, bitlen.data, NUM_DISTANCE_SYMBOLS, 15);
-	uivector_cleanup(&bitlen);
+
+	huffman_tree_create_lengths(upng, tree, bitlen, NUM_DISTANCE_SYMBOLS, 15);
 }
 
 /*Decodes a symbol from the tree
@@ -343,10 +314,10 @@ static void get_tree_inflate_fixed(upng_t* upng, huffman_tree* tree, huffman_tre
 /* get the tree of a deflated block with dynamic tree, the tree itself is also Huffman compressed with a known tree*/
 static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffman_tree* codetreeD, huffman_tree* codelengthcodetree, const unsigned char *in, unsigned long *bp, unsigned long inlength)
 {
+	unsigned codelengthcode[NUM_CODE_LENGTH_CODES];
+	unsigned bitlen[NUM_DEFLATE_CODE_SYMBOLS];
+	unsigned bitlenD[NUM_DISTANCE_SYMBOLS];
 	unsigned n, HLIT, HDIST, HCLEN, i;
-	uivector bitlen;
-	uivector bitlenD;
-	uivector codelengthcode;
 
 	/*make sure that length values that aren't filled in will be 0, or a wrong tree will be generated */
 	/*C-code note: use no "return" between ctor and dtor of an uivector! */
@@ -355,29 +326,24 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 		return;
 	}
 
+	/* clear bitlen arrays */
+	memset(bitlen, 0, sizeof(bitlen));
+	memset(bitlenD, 0, sizeof(bitlenD));
+
 	/*the bit pointer is or will go past the memory */
 	HLIT = read_bits(bp, in, 5) + 257;	/*number of literal/length codes + 257. Unlike the spec, the value 257 is added to it here already */
 	HDIST = read_bits(bp, in, 5) + 1;	/*number of distance codes. Unlike the spec, the value 1 is added to it here already */
 	HCLEN = read_bits(bp, in, 4) + 4;	/*number of code length codes. Unlike the spec, the value 4 is added to it here already */
 
-	/*read the code length codes out of 3 * (amount of code length codes) bits */
-	uivector_init(&codelengthcode);
-	if (uivector_resize(&codelengthcode, NUM_CODE_LENGTH_CODES) != UPNG_EOK) {
-		SET_ERROR(upng, UPNG_ENOMEM);
-		return;
-	}
-
 	for (i = 0; i < NUM_CODE_LENGTH_CODES; i++) {
 		if (i < HCLEN) {
-			codelengthcode.data[CLCL[i]] = read_bits(bp, in, 3);
+			codelengthcode[CLCL[i]] = read_bits(bp, in, 3);
 		} else {
-			codelengthcode.data[CLCL[i]] = 0;	/*if not, it must stay 0 */
+			codelengthcode[CLCL[i]] = 0;	/*if not, it must stay 0 */
 		}
 	}
 
-	huffman_tree_create_lengths(upng, codelengthcodetree, codelengthcode.data, codelengthcode.size, 7);
-
-	uivector_cleanup(&codelengthcode);
+	huffman_tree_create_lengths(upng, codelengthcodetree, codelengthcode, NUM_CODE_LENGTH_CODES, 7);
 
 	/* bail now if we encountered an error earlier */
 	if (upng->error != UPNG_EOK) {
@@ -385,130 +351,119 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 	}
 
 	/*now we can use this tree to read the lengths for the tree that this function will return */
-	uivector_init(&bitlen);
-	uivector_resizev(&bitlen, NUM_DEFLATE_CODE_SYMBOLS, 0);
-	uivector_init(&bitlenD);
-	uivector_resizev(&bitlenD, NUM_DISTANCE_SYMBOLS, 0);
 	i = 0;
-	if (!bitlen.data || !bitlenD.data) {
-		SET_ERROR(upng, UPNG_ENOMEM);
-	} else {
-		while (i < HLIT + HDIST) {	/*i is the current symbol we're reading in the part that contains the code lengths of lit/len codes and dist codes */
-			unsigned code = huffman_decode_symbol(upng, in, bp, codelengthcodetree, inlength);
-			if (upng->error != UPNG_EOK) {
-				break;
-			}
+	while (i < HLIT + HDIST) {	/*i is the current symbol we're reading in the part that contains the code lengths of lit/len codes and dist codes */
+		unsigned code = huffman_decode_symbol(upng, in, bp, codelengthcodetree, inlength);
+		if (upng->error != UPNG_EOK) {
+			break;
+		}
 
-			if (code <= 15) {	/*a length code */
-				if (i < HLIT) {
-					bitlen.data[i] = code;
-				} else {
-					bitlenD.data[i - HLIT] = code;
-				}
-				i++;
-			} else if (code == 16) {	/*repeat previous */
-				unsigned replength = 3;	/*read in the 2 bits that indicate repeat length (3-6) */
-				unsigned value;	/*set value to the previous code */
-
-				if ((*bp) >> 3 >= inlength) {
-					SET_ERROR(upng, UPNG_EMALFORMED);
-					break;
-				}
-				/*error, bit pointer jumps past memory */
-				replength += read_bits(bp, in, 2);
-
-				if ((i - 1) < HLIT) {
-					value = bitlen.data[i - 1];
-				} else {
-					value = bitlenD.data[i - HLIT - 1];
-				}
-
-				/*repeat this value in the next lengths */
-				for (n = 0; n < replength; n++) {
-					/* i is larger than the amount of codes */
-					if (i >= HLIT + HDIST) {
-						SET_ERROR(upng, UPNG_EMALFORMED);
-						break;
-					}
-
-					if (i < HLIT) {
-						bitlen.data[i] = value;
-					} else {
-						bitlenD.data[i - HLIT] = value;
-					}
-					i++;
-				}
-			} else if (code == 17) {	/*repeat "0" 3-10 times */
-				unsigned replength = 3;	/*read in the bits that indicate repeat length */
-				if ((*bp) >> 3 >= inlength) {
-					SET_ERROR(upng, UPNG_EMALFORMED);
-					break;
-				}
-
-				/*error, bit pointer jumps past memory */
-				replength += read_bits(bp, in, 3);
-
-				/*repeat this value in the next lengths */
-				for (n = 0; n < replength; n++) {
-					/* error: i is larger than the amount of codes */
-					if (i >= HLIT + HDIST) {
-						SET_ERROR(upng, UPNG_EMALFORMED);
-						break;
-					}
-
-					if (i < HLIT) {
-						bitlen.data[i] = 0;
-					} else {
-						bitlenD.data[i - HLIT] = 0;
-					}
-					i++;
-				}
-			} else if (code == 18) {	/*repeat "0" 11-138 times */
-				unsigned replength = 11;	/*read in the bits that indicate repeat length */
-				/* error, bit pointer jumps past memory */
-				if ((*bp) >> 3 >= inlength) {
-					SET_ERROR(upng, UPNG_EMALFORMED);
-					break;
-				}
-
-				replength += read_bits(bp, in, 7);
-
-				/*repeat this value in the next lengths */
-				for (n = 0; n < replength; n++) {
-					/* i is larger than the amount of codes */
-					if (i >= HLIT + HDIST) {
-						SET_ERROR(upng, UPNG_EMALFORMED);
-						break;
-					}
-					if (i < HLIT)
-						bitlen.data[i] = 0;
-					else
-						bitlenD.data[i - HLIT] = 0;
-					i++;
-				}
+		if (code <= 15) {	/*a length code */
+			if (i < HLIT) {
+				bitlen[i] = code;
 			} else {
-				/* somehow an unexisting code appeared. This can never happen. */
+				bitlenD[i - HLIT] = code;
+			}
+			i++;
+		} else if (code == 16) {	/*repeat previous */
+			unsigned replength = 3;	/*read in the 2 bits that indicate repeat length (3-6) */
+			unsigned value;	/*set value to the previous code */
+
+			if ((*bp) >> 3 >= inlength) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				break;
 			}
+			/*error, bit pointer jumps past memory */
+			replength += read_bits(bp, in, 2);
+
+			if ((i - 1) < HLIT) {
+				value = bitlen[i - 1];
+			} else {
+				value = bitlenD[i - HLIT - 1];
+			}
+
+			/*repeat this value in the next lengths */
+			for (n = 0; n < replength; n++) {
+				/* i is larger than the amount of codes */
+				if (i >= HLIT + HDIST) {
+					SET_ERROR(upng, UPNG_EMALFORMED);
+					break;
+				}
+
+				if (i < HLIT) {
+					bitlen[i] = value;
+				} else {
+					bitlenD[i - HLIT] = value;
+				}
+				i++;
+			}
+		} else if (code == 17) {	/*repeat "0" 3-10 times */
+			unsigned replength = 3;	/*read in the bits that indicate repeat length */
+			if ((*bp) >> 3 >= inlength) {
+				SET_ERROR(upng, UPNG_EMALFORMED);
+				break;
+			}
+
+			/*error, bit pointer jumps past memory */
+			replength += read_bits(bp, in, 3);
+
+			/*repeat this value in the next lengths */
+			for (n = 0; n < replength; n++) {
+				/* error: i is larger than the amount of codes */
+				if (i >= HLIT + HDIST) {
+					SET_ERROR(upng, UPNG_EMALFORMED);
+					break;
+				}
+
+				if (i < HLIT) {
+					bitlen[i] = 0;
+				} else {
+					bitlenD[i - HLIT] = 0;
+				}
+				i++;
+			}
+		} else if (code == 18) {	/*repeat "0" 11-138 times */
+			unsigned replength = 11;	/*read in the bits that indicate repeat length */
+			/* error, bit pointer jumps past memory */
+			if ((*bp) >> 3 >= inlength) {
+				SET_ERROR(upng, UPNG_EMALFORMED);
+				break;
+			}
+
+			replength += read_bits(bp, in, 7);
+
+			/*repeat this value in the next lengths */
+			for (n = 0; n < replength; n++) {
+				/* i is larger than the amount of codes */
+				if (i >= HLIT + HDIST) {
+					SET_ERROR(upng, UPNG_EMALFORMED);
+					break;
+				}
+				if (i < HLIT)
+					bitlen[i] = 0;
+				else
+					bitlenD[i - HLIT] = 0;
+				i++;
+			}
+		} else {
+			/* somehow an unexisting code appeared. This can never happen. */
+			SET_ERROR(upng, UPNG_EMALFORMED);
+			break;
 		}
 	}
 
-	if (upng->error == UPNG_EOK && bitlen.data[256] == 0) {
+	if (upng->error == UPNG_EOK && bitlen[256] == 0) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
 	}
 
 	/*the length of the end code 256 must be larger than 0 */
 	/*now we've finally got HLIT and HDIST, so generate the code trees, and the function is done */
 	if (upng->error == UPNG_EOK) {
-		huffman_tree_create_lengths(upng, codetree, &bitlen.data[0], bitlen.size, 15);
+		huffman_tree_create_lengths(upng, codetree, bitlen, NUM_DEFLATE_CODE_SYMBOLS, 15);
 	}
 	if (upng->error == UPNG_EOK) {
-		huffman_tree_create_lengths(upng, codetreeD, &bitlenD.data[0], bitlenD.size, 15);
+		huffman_tree_create_lengths(upng, codetreeD, bitlenD, NUM_DISTANCE_SYMBOLS, 15);
 	}
-
-	uivector_cleanup(&bitlen);
-	uivector_cleanup(&bitlenD);
 }
 
 /*inflate a block with dynamic of fixed Huffman tree*/
