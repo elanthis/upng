@@ -1,7 +1,7 @@
-all: test view
+all: png2tga glview
 
-test: test.c upng.c upng.h
-	$(CC) -o test test.c upng.c -Wall -pedantic -g -O0
+png2tga: png2tga.c upng.c upng.h
+	$(CC) -o png2tga png2tga.c upng.c -Wall -pedantic -g -O0
 
-view: view.c upng.c upng.h
-	$(CC) -o view view.c upng.c -Wall -pedantic -g -O0 -lSDL -lGL
+glview: glview.c upng.c upng.h
+	$(CC) -o glview glview.c upng.c -Wall -pedantic -g -O0 -lSDL -lGL

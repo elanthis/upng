@@ -15,16 +15,16 @@ Permission is granted to anyone to use this software for any purpose,
 including commercial applications, and to alter it and redistribute it
 freely, subject to the following restrictions:
 
-		1. The origin of this software must not be misrepresented; you must not
-		claim that you wrote the original software. If you use this software
-		in a product, an acknowledgment in the product documentation would be
-		appreciated but is not required.
+  1. The origin of this software must not be misrepresented; you must not
+  claim that you wrote the original software. If you use this software
+  in a product, an acknowledgment in the product documentation would be
+  appreciated but is not required.
 
-		2. Altered source versions must be plainly marked as such, and must not be
-		misrepresented as being the original software.
+  2. Altered source versions must be plainly marked as such, and must not be
+  misrepresented as being the original software.
 
-		3. This notice may not be removed or altered from any source
-		distribution.
+  3. This notice may not be removed or altered from any source
+  distribution.
 
 Features
 --------
@@ -114,3 +114,43 @@ Possible error states are:
   UPNG_ENOTPNG		Invalid file header (not a PNG image)
   UPNG_EMALFORMED	PNG image data does not follow spec and is malformed
   UPNG_EUNSUPPORTED	PNG image data is well-formed but not supported by uPNG
+
+TODO
+----
+
+- Audit the code (particularly the Huffman decoder) for buffer overflows.  Make sure
+  uPNG is safe to use even with image data from untrusted sources.
+
+- Make the decompressor work in a streaming/buffered manner, so that we don't need
+  to stitch together the PNG IDATA chunks before decompressing, shaving off one
+  unnecessary allocation.
+
+- Update the unfiltering code to work on the decompressed image buffer, rather than
+  needing a separate output buffer.  The removal of the Adam7 de-interlacing support
+  makes this easier.  Removes another unnecessary allocation.
+
+- Update the decoder API to work in a stream/buffered manner, so files can be read
+  without needing to allocate a temporary buffer.  This removes yet another
+  unnecessary allocation.
+
+- Update the decoder API to allow the user to provide an output buffer, so that
+  PNG images can be decoded directly to mapped texture memory.  Removes the need
+  for the last unnecessary allocation.
+
+- Provide byte swizzling option for decoded data, for DirectX uses, as it does
+  not use the big-endian RGBA format that PNG and OpenGL do.
+
+- Test that greyscale images with less than 8-bits of depth actually work, fix
+  or remove if they do not.
+
+- Enable support for 16-bit depth image formats for HDR needs.
+
+- Provide optional format conversion (as an extension to byte swizzling) to
+  convert input PNGs in one format to one of a (limited) set of target output
+  formats commonly used for texturing.
+
+- Provide floating-point conversion, at least for 16-bit source images, for
+  HDR textures.
+
+- Provide vertical flipping of decoded image data for APIs that prefer textures
+  with an origin in the lower-left instead of upper-left.

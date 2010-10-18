@@ -121,7 +121,7 @@ static unsigned read_bits(unsigned long *bitpointer, const unsigned char *bitstr
 {
 	unsigned result = 0, i;
 	for (i = 0; i < nbits; i++)
-		result += ((unsigned)read_bit(bitpointer, bitstream)) << i;
+		result |= ((unsigned)read_bit(bitpointer, bitstream)) << i;
 	return result;
 }
 
@@ -471,7 +471,7 @@ static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outs
 		get_tree_inflate_dynamic(upng, &codetree, &codetreeD, &codelengthcodetree, in, bp, inlength);
 	}
 
-	while (done == 0 && upng->error == UPNG_EOK) {
+	while (done == 0) {
 		unsigned code = huffman_decode_symbol(upng, in, bp, &codetree, inlength);
 		if (upng->error != UPNG_EOK) {
 			return;
