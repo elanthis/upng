@@ -31,16 +31,16 @@ int main(int argc, char** argv) {
 	printf("size:	%ux%ux%u (%u)\n", width, height, upng_get_bpp(upng), upng_get_size(upng));
 	printf("format:	%u\n", upng_get_format(upng));
 
-	if (upng_get_format(upng) == UPNG_RGB_888 || upng_get_format(upng) == UPNG_RGBA_8888) {
+	if (upng_get_format(upng) == UPNG_RGB8 || upng_get_format(upng) == UPNG_RGBA8) {
 		fh = fopen(argv[2], "wb");
 		fprintf(fh, "%c%c%c", 0, 0, 2);
 		fprintf(fh, "%c%c%c%c%c", 0, 0, 0, 0, 0);
-		fprintf(fh, "%c%c%c%c%c%c%c%c%c%c", 0, 0, 0, 0, LO(width), HI(width), LO(height), HI(height), upng_get_bpp(upng), upng_get_format(upng) == UPNG_RGBA_8888 ? 8 : 0);
+		fprintf(fh, "%c%c%c%c%c%c%c%c%c%c", 0, 0, 0, 0, LO(width), HI(width), LO(height), HI(height), upng_get_bpp(upng), upng_get_format(upng) == UPNG_RGBA8 ? 8 : 0);
 
 		for (y = 0; y != height; ++y) {
 			for (x = 0; x != width; ++x) {
 				for (d = 0; d != depth; ++d) {
-					putc(upng_get_buffer(upng)[(height - y - 1) * width * depth + x * depth + d], fh);
+					putc(upng_get_buffer(upng)[(height - y - 1) * width * depth + x * depth + (depth - d - 1)], fh);
 				}
 			}
 		}

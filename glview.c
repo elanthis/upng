@@ -89,10 +89,10 @@ int main(int argc, char** argv) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 	switch (upng_get_format(upng)) {
-	case UPNG_RGB_888:
+	case UPNG_RGB8:
 		glTexImage2D(GL_TEXTURE_2D, 0, 3, upng_get_width(upng), upng_get_height(upng), 0, GL_RGB, GL_UNSIGNED_BYTE, upng_get_buffer(upng));
 		break;
-	case UPNG_RGBA_8888:
+	case UPNG_RGBA8:
 		glTexImage2D(GL_TEXTURE_2D, 0, 4, upng_get_width(upng), upng_get_height(upng), 0, GL_RGBA, GL_UNSIGNED_BYTE, upng_get_buffer(upng));
 		break;
 	default:
