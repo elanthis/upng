@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
 		fh = fopen(argv[2], "wb");
 		fprintf(fh, "%c%c%c", 0, 0, 2);
 		fprintf(fh, "%c%c%c%c%c", 0, 0, 0, 0, 0);
-		fprintf(fh, "%c%c%c%c%c%c%c%c%c%c", 0, 0, 0, 0, LO(width), HI(width), LO(height), HI(height), upng_get_bpp(upng), upng_get_format(upng) == UPNG_RGBA8 ? 8 : 0);
+		fprintf(fh, "%c%c%c%c%c%c%c%c%c%c", 0, 0, 0, 0, LO(width), HI(width), LO(height), HI(height), upng_get_bpp(upng), upng_get_bitdepth(upng));
 
 		for (y = 0; y != height; ++y) {
 			for (x = 0; x != width; ++x) {

@@ -814,6 +814,51 @@ static void post_process_scanlines(upng_t* upng, unsigned char *out, unsigned ch
 	}
 }
 
+static upng_format determine_format(upng_t* upng) {
+	switch (upng->color_type) {
+	case UPNG_LUM:
+		switch (upng->color_depth) {
+		case 1:
+			return UPNG_LUMINANCE1;
+		case 2:
+			return UPNG_LUMINANCE2;
+		case 4:
+			return UPNG_LUMINANCE4;
+		case 8:
+			return UPNG_LUMINANCE8;
+		default:
+			return UPNG_BADFORMAT;
+		}
+	case UPNG_RGB:
+		if (upng->color_depth == 8) {
+			return UPNG_RGB8;
+		} else {
+			return UPNG_BADFORMAT;
+		}
+	case UPNG_LUMA:
+		switch (upng->color_depth) {
+		case 1:
+			return UPNG_LUMINANCEA1;
+		case 2:
+			return UPNG_LUMINANCEA2;
+		case 4:
+			return UPNG_LUMINANCEA4;
+		case 8:
+			return UPNG_LUMINANCEA8;
+		default:
+			return UPNG_BADFORMAT;
+		}
+	case UPNG_RGBA:
+		if (upng->color_depth == 8) {
+			return UPNG_RGBA8;
+		} else {
+			return UPNG_BADFORMAT;
+		}
+	default:
+		return UPNG_BADFORMAT;
+	}
+}
+
 /*read the information from the header and store it in the upng_Info. return value is error*/
 upng_error upng_inspect(upng_t* upng, const unsigned char *in, unsigned long inlength)
 {
@@ -850,7 +895,7 @@ upng_error upng_inspect(upng_t* upng, const unsigned char *in, unsigned long inl
 	upng->color_type = (upng_color)in[25];
 
 	/* determine our color format */
-	upng->format = upng_get_format(upng);
+	upng->format = determine_format(upng);
 	if (upng->format == UPNG_BADFORMAT) {
 		SET_ERROR(upng, UPNG_EUNFORMAT);
 		return upng->error;
@@ -1143,48 +1188,7 @@ unsigned upng_get_pixelsize(const upng_t* upng)
 
 upng_format upng_get_format(const upng_t* upng)
 {
-	switch (upng->color_type) {
-	case UPNG_LUM:
-		switch (upng->color_depth) {
-		case 1:
-			return UPNG_LUMINANCE1;
-		case 2:
-			return UPNG_LUMINANCE2;
-		case 4:
-			return UPNG_LUMINANCE4;
-		case 8:
-			return UPNG_LUMINANCE8;
-		default:
-			return UPNG_BADFORMAT;
-		}
-	case UPNG_RGB:
-		if (upng->color_depth == 8) {
-			return UPNG_RGB8;
-		} else {
-			return UPNG_BADFORMAT;
-		}
-	case UPNG_LUMA:
-		switch (upng->color_depth) {
-		case 1:
-			return UPNG_LUMINANCEA1;
-		case 2:
-			return UPNG_LUMINANCEA2;
-		case 4:
-			return UPNG_LUMINANCEA4;
-		case 8:
-			return UPNG_LUMINANCEA8;
-		default:
-			return UPNG_BADFORMAT;
-		}
-	case UPNG_RGBA:
-		if (upng->color_depth == 8) {
-			return UPNG_RGBA8;
-		} else {
-			return UPNG_BADFORMAT;
-		}
-	default:
-		return UPNG_BADFORMAT;
-	}
+	return upng->format;
 }
 
 const unsigned char* upng_get_buffer(const upng_t* upng)
