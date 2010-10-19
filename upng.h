@@ -28,30 +28,32 @@ freely, subject to the following restrictions:
 #define UPNG_H
 
 typedef enum upng_error {
-	UPNG_EOK			= 0,
-	UPNG_ENOMEM			= 1,
-	UPNG_ENOTFOUND		= 2,
-	UPNG_ENOTPNG		= 3,
-	UPNG_EMALFORMED		= 4,
-	UPNG_EUNSUPPORTED	= 5
+	UPNG_EOK			= 0, /* success (no error) */
+	UPNG_ENOMEM			= 1, /* memory allocation failed */
+	UPNG_ENOTFOUND		= 2, /* resource not found (file missing) */
+	UPNG_ENOTPNG		= 3, /* image data does not have a PNG header */
+	UPNG_EMALFORMED		= 4, /* image data is not a valid PNG image */
+	UPNG_EUNSUPPORTED	= 5, /* critical PNG chunk type is not supported */
+	UPNG_EUNINTERLACED	= 6, /* image interlacing is not supported */
+	UPNG_EUNFORMAT		= 7  /* image color format is not supported */
 } upng_error;
 
 typedef enum upng_format {
 	UPNG_BADFORMAT,
 
-	UPNG_RGB_888,
+	UPNG_RGB8,
 
-	UPNG_RGBA_8888,
+	UPNG_RGBA8,
 
-	UPNG_G_1,
-	UPNG_G_2,
-	UPNG_G_4,
-	UPNG_G_8,
+	UPNG_LUMINANCE1,
+	UPNG_LUMINANCE2,
+	UPNG_LUMINANCE4,
+	UPNG_LUMINANCE8,
 
-	UPNG_GA_1,
-	UPNG_GA_2,
-	UPNG_GA_4,
-	UPNG_GA_8
+	UPNG_LUMINANCEA1,
+	UPNG_LUMINANCEA2,
+	UPNG_LUMINANCEA4,
+	UPNG_LUMINANCEA8
 } upng_format;
 
 typedef struct upng_t upng_t;
@@ -71,6 +73,9 @@ unsigned	upng_get_error_line	(const upng_t* upng);
 unsigned	upng_get_width		(const upng_t* upng);
 unsigned	upng_get_height		(const upng_t* upng);
 unsigned	upng_get_bpp		(const upng_t* upng);
+unsigned	upng_get_bitdepth	(const upng_t* upng);
+unsigned	upng_get_components	(const upng_t* upng);
+unsigned	upng_get_pixelsize	(const upng_t* upng);
 unsigned	upng_get_format		(const upng_t* upng);
 
 const unsigned char*	upng_get_buffer		(const upng_t* upng);

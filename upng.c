@@ -63,9 +63,9 @@ freely, subject to the following restrictions:
 #define upng_chunk_critical(chunk) (((chunk)[4] & 32) == 0)
 
 typedef enum upng_color {
-	UPNG_GREY		= 0,
+	UPNG_LUM		= 0,
 	UPNG_RGB		= 2,
-	UPNG_GREY_ALPHA	= 4,
+	UPNG_LUMA		= 4,
 	UPNG_RGBA		= 6
 } upng_color;
 
@@ -284,7 +284,7 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 	unsigned codelengthcode[NUM_CODE_LENGTH_CODES];
 	unsigned bitlen[NUM_DEFLATE_CODE_SYMBOLS];
 	unsigned bitlenD[NUM_DISTANCE_SYMBOLS];
-	unsigned n, HLIT, HDIST, HCLEN, i;
+	unsigned n, hlit, hdist, hclen, i;
 
 	/*make sure that length values that aren't filled in will be 0, or a wrong tree will be generated */
 	/*C-code note: use no "return" between ctor and dtor of an uivector! */
@@ -298,12 +298,12 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 	memset(bitlenD, 0, sizeof(bitlenD));
 
 	/*the bit pointer is or will go past the memory */
-	HLIT = read_bits(bp, in, 5) + 257;	/*number of literal/length codes + 257. Unlike the spec, the value 257 is added to it here already */
-	HDIST = read_bits(bp, in, 5) + 1;	/*number of distance codes. Unlike the spec, the value 1 is added to it here already */
-	HCLEN = read_bits(bp, in, 4) + 4;	/*number of code length codes. Unlike the spec, the value 4 is added to it here already */
+	hlit = read_bits(bp, in, 5) + 257;	/*number of literal/length codes + 257. Unlike the spec, the value 257 is added to it here already */
+	hdist = read_bits(bp, in, 5) + 1;	/*number of distance codes. Unlike the spec, the value 1 is added to it here already */
+	hclen = read_bits(bp, in, 4) + 4;	/*number of code length codes. Unlike the spec, the value 4 is added to it here already */
 
 	for (i = 0; i < NUM_CODE_LENGTH_CODES; i++) {
-		if (i < HCLEN) {
+		if (i < hclen) {
 			codelengthcode[CLCL[i]] = read_bits(bp, in, 3);
 		} else {
 			codelengthcode[CLCL[i]] = 0;	/*if not, it must stay 0 */
@@ -319,17 +319,17 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 
 	/*now we can use this tree to read the lengths for the tree that this function will return */
 	i = 0;
-	while (i < HLIT + HDIST) {	/*i is the current symbol we're reading in the part that contains the code lengths of lit/len codes and dist codes */
+	while (i < hlit + hdist) {	/*i is the current symbol we're reading in the part that contains the code lengths of lit/len codes and dist codes */
 		unsigned code = huffman_decode_symbol(upng, in, bp, codelengthcodetree, inlength);
 		if (upng->error != UPNG_EOK) {
 			break;
 		}
 
 		if (code <= 15) {	/*a length code */
-			if (i < HLIT) {
+			if (i < hlit) {
 				bitlen[i] = code;
 			} else {
-				bitlenD[i - HLIT] = code;
+				bitlenD[i - hlit] = code;
 			}
 			i++;
 		} else if (code == 16) {	/*repeat previous */
@@ -343,24 +343,24 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 			/*error, bit pointer jumps past memory */
 			replength += read_bits(bp, in, 2);
 
-			if ((i - 1) < HLIT) {
+			if ((i - 1) < hlit) {
 				value = bitlen[i - 1];
 			} else {
-				value = bitlenD[i - HLIT - 1];
+				value = bitlenD[i - hlit - 1];
 			}
 
 			/*repeat this value in the next lengths */
 			for (n = 0; n < replength; n++) {
 				/* i is larger than the amount of codes */
-				if (i >= HLIT + HDIST) {
+				if (i >= hlit + hdist) {
 					SET_ERROR(upng, UPNG_EMALFORMED);
 					break;
 				}
 
-				if (i < HLIT) {
+				if (i < hlit) {
 					bitlen[i] = value;
 				} else {
-					bitlenD[i - HLIT] = value;
+					bitlenD[i - hlit] = value;
 				}
 				i++;
 			}
@@ -377,15 +377,15 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 			/*repeat this value in the next lengths */
 			for (n = 0; n < replength; n++) {
 				/* error: i is larger than the amount of codes */
-				if (i >= HLIT + HDIST) {
+				if (i >= hlit + hdist) {
 					SET_ERROR(upng, UPNG_EMALFORMED);
 					break;
 				}
 
-				if (i < HLIT) {
+				if (i < hlit) {
 					bitlen[i] = 0;
 				} else {
-					bitlenD[i - HLIT] = 0;
+					bitlenD[i - hlit] = 0;
 				}
 				i++;
 			}
@@ -402,14 +402,14 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 			/*repeat this value in the next lengths */
 			for (n = 0; n < replength; n++) {
 				/* i is larger than the amount of codes */
-				if (i >= HLIT + HDIST) {
+				if (i >= hlit + hdist) {
 					SET_ERROR(upng, UPNG_EMALFORMED);
 					break;
 				}
-				if (i < HLIT)
+				if (i < hlit)
 					bitlen[i] = 0;
 				else
-					bitlenD[i - HLIT] = 0;
+					bitlenD[i - hlit] = 0;
 				i++;
 			}
 		} else {
@@ -424,7 +424,7 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 	}
 
 	/*the length of the end code 256 must be larger than 0 */
-	/*now we've finally got HLIT and HDIST, so generate the code trees, and the function is done */
+	/*now we've finally got hlit and hdist, so generate the code trees, and the function is done */
 	if (upng->error == UPNG_EOK) {
 		huffman_tree_create_lengths(upng, codetree, bitlen);
 	}
@@ -729,7 +729,7 @@ static void unfilter_scanline(upng_t* upng, unsigned char *recon, const unsigned
 		}
 		break;
 	default:
-		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		SET_ERROR(upng, UPNG_EMALFORMED);
 		break;
 	}
 }
@@ -799,7 +799,7 @@ static void post_process_scanlines(upng_t* upng, unsigned char *out, unsigned ch
 	unsigned h = info_png->height;
 
 	if (bpp == 0) {
-		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		SET_ERROR(upng, UPNG_EMALFORMED);
 		return;
 	}
 
@@ -852,7 +852,7 @@ upng_error upng_inspect(upng_t* upng, const unsigned char *in, unsigned long inl
 	/* determine our color format */
 	upng->format = upng_get_format(upng);
 	if (upng->format == UPNG_BADFORMAT) {
-		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		SET_ERROR(upng, UPNG_EUNFORMAT);
 		return upng->error;
 	}
 
@@ -870,7 +870,7 @@ upng_error upng_inspect(upng_t* upng, const unsigned char *in, unsigned long inl
 
 	/* check that the compression method (byte 27) is 0 (spec allows 1, but uPNG does not support it) */
 	if (in[28] != 0) {
-		SET_ERROR(upng, UPNG_EUNSUPPORTED);
+		SET_ERROR(upng, UPNG_EUNINTERLACED);
 		return upng->error;
 	}
 
@@ -1069,7 +1069,7 @@ upng_t* upng_new(void)
 
 	upng->color_type = UPNG_RGBA;
 	upng->color_depth = 8;
-	upng->format = UPNG_RGBA_8888;
+	upng->format = UPNG_RGBA8;
 
 	upng->error = UPNG_EOK;
 	upng->error_line = 0;
@@ -1110,58 +1110,75 @@ unsigned upng_get_height(const upng_t* upng)
 
 unsigned upng_get_bpp(const upng_t* upng)
 {
+	return upng_get_bitdepth(upng) * upng_get_components(upng);
+}
+
+unsigned upng_get_components(const upng_t* upng)
+{
 	switch (upng->color_type) {
-	case UPNG_GREY:
-		return upng->color_depth;
+	case UPNG_LUM:
+		return 1;
 	case UPNG_RGB:
-		return upng->color_depth * 3;
-	case UPNG_GREY_ALPHA:
-		return upng->color_depth * 2;
+		return 3;
+	case UPNG_LUMA:
+		return 2;
 	case UPNG_RGBA:
-		return upng->color_depth * 4;
+		return 4;
 	default:
 		return 0;
 	}
 }
 
+unsigned upng_get_bitdepth(const upng_t* upng)
+{
+	return upng->color_depth;
+}
+
+unsigned upng_get_pixelsize(const upng_t* upng)
+{
+	unsigned bits = upng_get_bitdepth(upng) * upng_get_components(upng);
+	bits += bits % 8;
+	return bits;
+}
+
 upng_format upng_get_format(const upng_t* upng)
 {
 	switch (upng->color_type) {
-	case UPNG_GREY:
+	case UPNG_LUM:
 		switch (upng->color_depth) {
 		case 1:
-			return UPNG_G_1;
+			return UPNG_LUMINANCE1;
 		case 2:
-			return UPNG_G_2;
+			return UPNG_LUMINANCE2;
 		case 4:
-			return UPNG_G_4;
+			return UPNG_LUMINANCE4;
 		case 8:
-			return UPNG_G_8;
+			return UPNG_LUMINANCE8;
 		default:
 			return UPNG_BADFORMAT;
 		}
 	case UPNG_RGB:
 		if (upng->color_depth == 8) {
-			return UPNG_RGB_888;
+			return UPNG_RGB8;
 		} else {
 			return UPNG_BADFORMAT;
 		}
-	case UPNG_GREY_ALPHA:
+	case UPNG_LUMA:
 		switch (upng->color_depth) {
 		case 1:
-			return UPNG_GA_1;
+			return UPNG_LUMINANCEA1;
 		case 2:
-			return UPNG_GA_2;
+			return UPNG_LUMINANCEA2;
 		case 4:
-			return UPNG_GA_4;
+			return UPNG_LUMINANCEA4;
 		case 8:
-			return UPNG_GA_8;
+			return UPNG_LUMINANCEA8;
 		default:
 			return UPNG_BADFORMAT;
 		}
 	case UPNG_RGBA:
 		if (upng->color_depth == 8) {
-			return UPNG_RGBA_8888;
+			return UPNG_RGBA8;
 		} else {
 			return UPNG_BADFORMAT;
 		}

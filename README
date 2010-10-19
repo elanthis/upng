@@ -67,53 +67,56 @@ decoded image buffer.
 
 The core functions are:
 
-  upng_new()			Returns a new upng_t object
-  upng_free(upng_t*)	Frees the resources attached to a upng_t object
+  upng_new()            Returns a new upng_t object
+  upng_free(upng_t*)    Frees the resources attached to a upng_t object
 
-  upng_inspect(upng_t*, const char*)	Determines image attributs of data in string (does not decode image)
-  upng_decode(upng_t*, const char*)		Decodes image in string
+  upng_inspect(upng_t*, const char*)    Determines image attributs of data in string (does not decode image)
+  upng_decode(upng_t*, const char*)     Decodes image in string
 
-  upng_inspect_file(upng_t*, const char*)	Determines image attributs of data in given file path (does not decode image)
-  upng_decode_file(upng_t*, const char*)	Decodes image in given file path
+  upng_inspect_file(upng_t*, const char*)   Determines image attributs of data in given file path (does not decode image)
+  upng_decode_file(upng_t*, const char*)    Decodes image in given file path
 
 The query functions are:
 
-  upng_get_width(upng_t*)		Returns width of image in pixels
-  upng_get_height(upng_t*)		Returns height of image in pixels
-  upng_get_size(upng_t*)		Returns the total size of the image buffer in bytes
-  upng_get_bpp(upng_t*)			Returns the number of bits per pixel (e.g., 32 for 8-bit RGBA)
-  upng_get_format(upng_t*)		Returns the format of the image buffer (see below)
-  upng_get_buffer(upng_t*)		Returns a pointer to the image buffer
+  upng_get_width(upng_t*)       Returns width of image in pixels
+  upng_get_height(upng_t*)      Returns height of image in pixels
+  upng_get_size(upng_t*)        Returns the total size of the image buffer in bytes
+  upng_get_bpp(upng_t*)         Returns the number of bits per pixel (e.g., 32 for 8-bit RGBA)
+  upng_get_bitdepth(upng_t*)    Returns the number of bits per component (e.g., 8 for 8-bit RGBA)
+  upng_get_pixelsize(upng_t*)   Returns the number of bytes per pixel (e.g., 4 for 8-bit RGBA)
+  upng_get_components(upng_t*)  Returns the number of components per pixel (e.g., 4 for 8-bit RGBA)
+  upng_get_format(upng_t*)      Returns the format of the image buffer (see below)
+  upng_get_buffer(upng_t*)      Returns a pointer to the image buffer
 
 Additionally, for error handling, you can use:
 
-  upng_get_error(upng_t*)		Returns the error state of the upng object (UPNG_EOK means no error)
-  upng_get_error_line(upng_t*)	Returns the line in the upng.c file where the error state was set
+  upng_get_error(upng_t*)       Returns the error state of the upng object (UPNG_EOK means no error)
+  upng_get_error_line(upng_t*)  Returns the line in the upng.c file where the error state was set
 
 The formats supported are:
 
-  UPNG_RGB_888		24-bit RGB
+  UPNG_RGB8         24-bit RGB
 
-  UPNG_RGBA_8888	32-bit RGBA
+  UPNG_RGBA8        32-bit RGBA
 
-  UPNG_G_1			1-bit Greyscale
-  UPNG_G_2			2-bit Greyscale
-  UPNG_G_4			4-bit Greyscale
-  UPNG_G_8			8-bit Greyscale
+  UPNG_LUMINANCE1   1-bit Greyscale
+  UPNG_LUMINANCE2   2-bit Greyscale
+  UPNG_LUMINANCE4   4-bit Greyscale
+  UPNG_LUMINANCE8   8-bit Greyscale
 
-  UPNG_GA_1			1-bit Greyscale w/ 1-bit Alpha
-  UPNG_GA_2			2-bit Greyscale w/ 2-bit Alpha
-  UPNG_GA_4			4-bit Greyscale w/ 4-bit Alpha
-  UPNG_GA_8			8-bit Greyscale w/ 8-bit Alpha
+  UPNG_LUMINANCEA1  1-bit Greyscale w/ 1-bit Alpha
+  UPNG_LUMINANCEA2  2-bit Greyscale w/ 2-bit Alpha
+  UPNG_LUMINANCEA4  4-bit Greyscale w/ 4-bit Alpha
+  UPNG_LUMINANCEA8  8-bit Greyscale w/ 8-bit Alpha
 
 Possible error states are:
 
-  UPNG_EOK			No error (success)
-  UPNG_ENOMEM		Out of memory
-  UPNG_ENOTFOUND	Resource not found
-  UPNG_ENOTPNG		Invalid file header (not a PNG image)
-  UPNG_EMALFORMED	PNG image data does not follow spec and is malformed
-  UPNG_EUNSUPPORTED	PNG image data is well-formed but not supported by uPNG
+  UPNG_EOK          No error (success)
+  UPNG_ENOMEM       Out of memory
+  UPNG_ENOTFOUND    Resource not found
+  UPNG_ENOTPNG      Invalid file header (not a PNG image)
+  UPNG_EMALFORMED   PNG image data does not follow spec and is malformed
+  UPNG_EUNSUPPORTED PNG image data is well-formed but not supported by uPNG
 
 TODO
 ----
