@@ -35,37 +35,34 @@ typedef enum upng_error {
 	UPNG_EMALFORMED		= 4, /* image data is not a valid PNG image */
 	UPNG_EUNSUPPORTED	= 5, /* critical PNG chunk type is not supported */
 	UPNG_EUNINTERLACED	= 6, /* image interlacing is not supported */
-	UPNG_EUNFORMAT		= 7  /* image color format is not supported */
+	UPNG_EUNFORMAT		= 7, /* image color format is not supported */
+	UPNG_EPARAM			= 8  /* invalid parameter to method call */
 } upng_error;
 
 typedef enum upng_format {
 	UPNG_BADFORMAT,
-
 	UPNG_RGB8,
-
+	UPNG_RGB16,
 	UPNG_RGBA8,
-
+	UPNG_RGBA16,
 	UPNG_LUMINANCE1,
 	UPNG_LUMINANCE2,
 	UPNG_LUMINANCE4,
 	UPNG_LUMINANCE8,
-
-	UPNG_LUMINANCEA1,
-	UPNG_LUMINANCEA2,
-	UPNG_LUMINANCEA4,
-	UPNG_LUMINANCEA8
+	UPNG_LUMINANCE_ALPHA1,
+	UPNG_LUMINANCE_ALPHA2,
+	UPNG_LUMINANCE_ALPHA4,
+	UPNG_LUMINANCE_ALPHA8
 } upng_format;
 
 typedef struct upng_t upng_t;
 
-upng_t*	upng_new			(void);
-void		upng_free			(upng_t* decoder);
+upng_t*		upng_new_from_bytes	(const unsigned char* buffer, unsigned long size);
+upng_t*		upng_new_from_file	(const char* path);
+void		upng_free			(upng_t* upng);
 
-upng_error	upng_decode			(upng_t* decoder, const unsigned char* in, unsigned long insize);
-upng_error	upng_decode_file	(upng_t* decoder, const char* filename);
-
-upng_error	upng_inspect		(upng_t* decoder, const unsigned char* in, unsigned long size);
-upng_error	upng_inspect_file	(upng_t* decoder, const char* filename);
+upng_error	upng_header			(upng_t* upng);
+upng_error	upng_decode			(upng_t* upng);
 
 upng_error	upng_get_error		(const upng_t* upng);
 unsigned	upng_get_error_line	(const upng_t* upng);

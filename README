@@ -60,21 +60,28 @@ decoded image buffer.
 
   upng_t* upng;
 
-  upng = upng_new();
-  upng_decode_file(upng, "image.png");
-  /* do stuff with image */
-  upng_free(upng);
+  upng = upng_new_from_file("image.png");
+  if (upng != NULL) {
+    upng_decode(upng);
+    if (upng_get_error(upng) == UPNG_EOK) {
+      /* do stuff with image */
+    }
 
-The core functions are:
+    upng_free(upng);
+  }
 
-  upng_new()            Returns a new upng_t object
+You can load a PNG either from an in-memory buffer of bytes or from a file
+specified by file path.
+
+  upng_new_from_bytes(const unsigned char*, unsigned long length)
+  upng_new_from_file(const char*)
+
+Once an upng_t object is created, you can read just its header properties,
+decode the entire file, and release its resources.
+
+  upng_header(upng_t*)  Reads just the header, sets image properties
+  upng_decode(upng_t*)  Decodes image data
   upng_free(upng_t*)    Frees the resources attached to a upng_t object
-
-  upng_inspect(upng_t*, const char*)    Determines image attributs of data in string (does not decode image)
-  upng_decode(upng_t*, const char*)     Decodes image in string
-
-  upng_inspect_file(upng_t*, const char*)   Determines image attributs of data in given file path (does not decode image)
-  upng_decode_file(upng_t*, const char*)    Decodes image in given file path
 
 The query functions are:
 
@@ -96,17 +103,10 @@ Additionally, for error handling, you can use:
 The formats supported are:
 
   UPNG_RGB8         24-bit RGB
-
+  UPNG_RGB16        48-bit RGB
   UPNG_RGBA8        32-bit RGBA
-
-  UPNG_LUMINANCE1   1-bit Greyscale
-  UPNG_LUMINANCE2   2-bit Greyscale
-  UPNG_LUMINANCE4   4-bit Greyscale
+  UPNG_RGBA16       64-bit RGBA
   UPNG_LUMINANCE8   8-bit Greyscale
-
-  UPNG_LUMINANCEA1  1-bit Greyscale w/ 1-bit Alpha
-  UPNG_LUMINANCEA2  2-bit Greyscale w/ 2-bit Alpha
-  UPNG_LUMINANCEA4  4-bit Greyscale w/ 4-bit Alpha
   UPNG_LUMINANCEA8  8-bit Greyscale w/ 8-bit Alpha
 
 Possible error states are:
@@ -140,13 +140,8 @@ TODO
   PNG images can be decoded directly to mapped texture memory.  Removes the need
   for the last unnecessary allocation.
 
-- Provide byte swizzling option for decoded data, for DirectX uses, as it does
-  not use the big-endian RGBA format that PNG and OpenGL do.
-
 - Test that greyscale images with less than 8-bits of depth actually work, fix
   or remove if they do not.
-
-- Enable support for 16-bit depth image formats for HDR needs.
 
 - Provide optional format conversion (as an extension to byte swizzling) to
   convert input PNGs in one format to one of a (limited) set of target output
