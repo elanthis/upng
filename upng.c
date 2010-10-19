@@ -252,35 +252,11 @@ static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const 
 	}
 }
 
-/*Decodes a symbol from the tree
-if decoded is true, then result contains the symbol, otherwise it contains something unspecified (because the symbol isn't fully decoded yet)
-bit is the bit that was just read from the stream
-you have to decode a full symbol (let the decode function return true) before you can try to decode another one, otherwise the state isn't reset
-return value is error.*/
-static void huffman_tree_decode(upng_t* upng, const huffman_tree* tree, unsigned *decoded, unsigned *result, unsigned *treepos, unsigned char bit)
-{
-	/* error: it appeared outside the codetree */
-	if ((*treepos) >= tree->numcodes) {
-		SET_ERROR(upng, UPNG_EMALFORMED);
-		return;
-	}
-
-	(*result) = tree->tree2d[2 * (*treepos) + bit];
-	(*decoded) = ((*result) < tree->numcodes);
-
-	if (*decoded) {
-		(*treepos) = 0;
-	} else {
-		(*treepos) = (*result) - tree->numcodes;
-	}
-}
-
 static unsigned huffman_decode_symbol(upng_t *upng, const unsigned char *in, unsigned long *bp, const huffman_tree* codetree, unsigned long inlength)
 {
-	unsigned treepos = 0, decoded, ct;
+	unsigned treepos = 0, ct;
+	unsigned char bit;
 	for (;;) {
-		unsigned char bit;
-
 		/* error: end of input memory reached without endcode */
 		if (((*bp) & 0x07) == 0 && ((*bp) >> 3) > inlength) {
 			SET_ERROR(upng, UPNG_EMALFORMED);
@@ -288,13 +264,16 @@ static unsigned huffman_decode_symbol(upng_t *upng, const unsigned char *in, uns
 		}
 
 		bit = read_bit(bp, in);
-		huffman_tree_decode(upng, codetree, &decoded, &ct, &treepos, bit);
-		if (upng->error != UPNG_EOK) {
-			return 0;
+
+		ct = codetree->tree2d[(treepos << 1) | bit];
+		if (ct < codetree->numcodes) {
+			return ct;
 		}
 
-		if (decoded) {
-			return ct;
+		treepos = ct - codetree->numcodes;
+		if (treepos >= codetree->numcodes) {
+			SET_ERROR(upng, UPNG_EMALFORMED);
+			return 0;
 		}
 	}
 }
