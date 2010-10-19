@@ -73,7 +73,7 @@ unsigned	upng_get_bpp		(const upng_t* upng);
 unsigned	upng_get_bitdepth	(const upng_t* upng);
 unsigned	upng_get_components	(const upng_t* upng);
 unsigned	upng_get_pixelsize	(const upng_t* upng);
-unsigned	upng_get_format		(const upng_t* upng);
+upng_format	upng_get_format		(const upng_t* upng);
 
 const unsigned char*	upng_get_buffer		(const upng_t* upng);
 unsigned				upng_get_size		(const upng_t* upng);
