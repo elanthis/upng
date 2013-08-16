@@ -205,7 +205,7 @@ static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const 
 {
 	unsigned tree1d[MAX_SYMBOLS];
 	unsigned blcount[MAX_BIT_LENGTH];
-	unsigned nextcode[MAX_BIT_LENGTH];
+	unsigned nextcode[MAX_BIT_LENGTH+1];
 	unsigned bits, n, i;
 	unsigned nodefilled = 0;	/*up to which node it is filled */
 	unsigned treepos = 0;	/*position in the tree (1 of the numcodes columns) */
