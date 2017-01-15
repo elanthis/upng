@@ -1,5 +1,9 @@
 #include <SDL/SDL.h>
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#else
 #include <GL/gl.h>
+#endif
 #include <stdio.h>
 #include <malloc.h>
 
