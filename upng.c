@@ -928,6 +928,14 @@ upng_error upng_header(upng_t* upng)
 	/* read the values given in the header */
 	upng->width = MAKE_DWORD_PTR(upng->source.buffer + 16);
 	upng->height = MAKE_DWORD_PTR(upng->source.buffer + 20);
+    if (upng->width > 10000 || upng->height > 10000) {
+		/* should be upng->width > INT_MAX || upng->height > INT_MAX according to the spec
+		 * this arbitrary but reasonable limit makes overflow checks in other parts of the code
+		 * redundant */
+		SET_ERROR(upng, UPNG_EUNFORMAT);
+		return upng->error;
+    }
+
 	upng->color_depth = upng->source.buffer[24];
 	upng->color_type = (upng_color)upng->source.buffer[25];
 
@@ -1066,6 +1074,7 @@ upng_error upng_decode(upng_t* upng)
 	}
 
 	/* allocate space to store inflated (but still filtered) data */
+	/* Restrict height and width above to prevent an overflow here */
 	inflated_size = ((upng->width * (upng->height * upng_get_bpp(upng) + 7)) / 8) + upng->height;
 	inflated = (unsigned char*)malloc(inflated_size);
 	if (inflated == NULL) {
