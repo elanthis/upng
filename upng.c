@@ -1261,8 +1261,7 @@ unsigned upng_get_bitdepth(const upng_t* upng)
 unsigned upng_get_pixelsize(const upng_t* upng)
 {
 	unsigned bits = upng_get_bitdepth(upng) * upng_get_components(upng);
-	bits += bits % 8;
-	return bits;
+	return (bits + 7) / 8;
 }
 
 upng_format upng_get_format(const upng_t* upng)
