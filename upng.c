@@ -38,6 +38,7 @@ freely, subject to the following restrictions:
 #define CHUNK_IHDR MAKE_DWORD('I','H','D','R')
 #define CHUNK_IDAT MAKE_DWORD('I','D','A','T')
 #define CHUNK_IEND MAKE_DWORD('I','E','N','D')
+#define CHUNK_PLTE MAKE_DWORD('P','L','T','E')
 
 #define FIRST_LENGTH_CODE_INDEX 257
 #define LAST_LENGTH_CODE_INDEX 285
@@ -72,6 +73,7 @@ typedef enum upng_state {
 typedef enum upng_color {
 	UPNG_LUM		= 0,
 	UPNG_RGB		= 2,
+	UPNG_INDX		= 3,
 	UPNG_LUMA		= 4,
 	UPNG_RGBA		= 6
 } upng_color;
@@ -92,6 +94,8 @@ struct upng_t {
 
 	unsigned char*	buffer;
 	unsigned long	size;
+
+	unsigned char*	pallet;
 
 	upng_error		error;
 	unsigned		error_line;
@@ -876,6 +880,13 @@ static upng_format determine_format(upng_t* upng) {
 		default:
 			return UPNG_BADFORMAT;
 		}
+	case UPNG_INDX:
+		switch (upng->color_depth) {
+		case 8:
+			return UPNG_INDEX8;
+		default:
+			return UPNG_BADFORMAT;
+		}
 	default:
 		return UPNG_BADFORMAT;
 	}
@@ -966,7 +977,9 @@ upng_error upng_decode(upng_t* upng)
 	const unsigned char *chunk;
 	unsigned char* compressed;
 	unsigned char* inflated;
+	unsigned char* pallet = NULL;
 	unsigned long compressed_size = 0, compressed_index = 0;
+	unsigned long pallet_size = 0;
 	unsigned long inflated_size;
 	upng_error error;
 
@@ -1027,6 +1040,8 @@ upng_error upng_decode(upng_t* upng)
 		/* parse chunks */
 		if (upng_chunk_type(chunk) == CHUNK_IDAT) {
 			compressed_size += length;
+		} else if (upng_chunk_type(chunk) == CHUNK_PLTE) {
+			pallet_size = length;
 		} else if (upng_chunk_type(chunk) == CHUNK_IEND) {
 			break;
 		} else if (upng_chunk_critical(chunk)) {
@@ -1044,6 +1059,15 @@ upng_error upng_decode(upng_t* upng)
 		return upng->error;
 	}
 
+	if (pallet_size) {
+		pallet = (unsigned char*)malloc(pallet_size);
+		if (pallet == NULL) {
+			free(compressed);
+			SET_ERROR(upng, UPNG_ENOMEM);
+			return upng->error;
+		}
+	}
+
 	/* scan through the chunks again, this time copying the values into
 	 * our compressed buffer.  there's no reason to validate anything a second time. */
 	chunk = upng->source.buffer + 33;
@@ -1058,6 +1082,9 @@ upng_error upng_decode(upng_t* upng)
 			data = chunk + 8;
 			memcpy(compressed + compressed_index, data, length);
 			compressed_index += length;
+		} else if (upng_chunk_type(chunk) == CHUNK_PLTE) {
+			data = chunk + 8;
+			memcpy(pallet, data, pallet_size);
 		} else if (upng_chunk_type(chunk) == CHUNK_IEND) {
 			break;
 		}
@@ -1069,6 +1096,7 @@ upng_error upng_decode(upng_t* upng)
 	inflated_size = ((upng->width * (upng->height * upng_get_bpp(upng) + 7)) / 8) + upng->height;
 	inflated = (unsigned char*)malloc(inflated_size);
 	if (inflated == NULL) {
+		free(pallet);
 		free(compressed);
 		SET_ERROR(upng, UPNG_ENOMEM);
 		return upng->error;
@@ -1077,6 +1105,7 @@ upng_error upng_decode(upng_t* upng)
 	/* decompress image data */
 	error = uz_inflate(upng, inflated, inflated_size, compressed, compressed_size);
 	if (error != UPNG_EOK) {
+		free(pallet);
 		free(compressed);
 		free(inflated);
 		return upng->error;
@@ -1089,6 +1118,7 @@ upng_error upng_decode(upng_t* upng)
 	upng->size = (upng->height * upng->width * upng_get_bpp(upng) + 7) / 8;
 	upng->buffer = (unsigned char*)malloc(upng->size);
 	if (upng->buffer == NULL) {
+		free(pallet);
 		free(inflated);
 		upng->size = 0;
 		SET_ERROR(upng, UPNG_ENOMEM);
@@ -1100,10 +1130,13 @@ upng_error upng_decode(upng_t* upng)
 	free(inflated);
 
 	if (upng->error != UPNG_EOK) {
+		free(pallet);
 		free(upng->buffer);
 		upng->buffer = NULL;
 		upng->size = 0;
 	} else {
+		/* pallet */
+		upng->pallet = pallet;
 		upng->state = UPNG_DECODED;
 	}
 
@@ -1200,6 +1233,11 @@ upng_t* upng_new_from_file(const char *filename)
 
 void upng_free(upng_t* upng)
 {
+	/* deallocate pallet */
+	if (upng->pallet != NULL) {
+		free(upng->pallet);
+	}
+
 	/* deallocate image buffer */
 	if (upng->buffer != NULL) {
 		free(upng->buffer);
@@ -1248,6 +1286,8 @@ unsigned upng_get_components(const upng_t* upng)
 		return 2;
 	case UPNG_RGBA:
 		return 4;
+	case UPNG_INDX:
+		return 1;
 	default:
 		return 0;
 	}
@@ -1278,4 +1318,9 @@ const unsigned char* upng_get_buffer(const upng_t* upng)
 unsigned upng_get_size(const upng_t* upng)
 {
 	return upng->size;
+}
+
+const unsigned char* upng_get_pallet(const upng_t* upng)
+{
+	return upng->pallet;
 }
