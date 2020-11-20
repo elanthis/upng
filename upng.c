@@ -1000,7 +1000,7 @@ upng_error upng_decode(upng_t* upng)
 	 * verify general well-formed-ness */
 	while (chunk < upng->source.buffer + upng->source.size) {
 		unsigned long length;
-		const unsigned char *data;	/*the data in the chunk */
+		// const unsigned char *data;	/*the data in the chunk */
 
 		/* make sure chunk header is not larger than the total compressed */
 		if ((unsigned long)(chunk - upng->source.buffer + 12) > upng->source.size) {
@@ -1022,7 +1022,7 @@ upng_error upng_decode(upng_t* upng)
 		}
 
 		/* get pointer to payload */
-		data = chunk + 8;
+		// data = chunk + 8;
 
 		/* parse chunks */
 		if (upng_chunk_type(chunk) == CHUNK_IDAT) {
@@ -1034,7 +1034,7 @@ upng_error upng_decode(upng_t* upng)
 			return upng->error;
 		}
 
-		chunk += upng_chunk_length(chunk) + 12;
+		chunk += length + 12;
 	}
 
 	/* allocate enough space for the (compressed and filtered) image data */
@@ -1052,17 +1052,17 @@ upng_error upng_decode(upng_t* upng)
 		const unsigned char *data;	/*the data in the chunk */
 
 		length = upng_chunk_length(chunk);
-		data = chunk + 8;
 
 		/* parse chunks */
 		if (upng_chunk_type(chunk) == CHUNK_IDAT) {
+			data = chunk + 8;
 			memcpy(compressed + compressed_index, data, length);
 			compressed_index += length;
 		} else if (upng_chunk_type(chunk) == CHUNK_IEND) {
 			break;
 		}
 
-		chunk += upng_chunk_length(chunk) + 12;
+		chunk += length + 12;
 	}
 
 	/* allocate space to store inflated (but still filtered) data */
