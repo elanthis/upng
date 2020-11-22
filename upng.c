@@ -882,6 +882,12 @@ static upng_format determine_format(upng_t* upng) {
 		}
 	case UPNG_INDX:
 		switch (upng->color_depth) {
+		case 1:
+			return UPNG_INDEX1;
+		case 2:
+			return UPNG_INDEX2;
+		case 4:
+			return UPNG_INDEX4;
 		case 8:
 			return UPNG_INDEX8;
 		default:
