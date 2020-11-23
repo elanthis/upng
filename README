@@ -113,7 +113,7 @@ The formats supported are:
   UPNG_LUMINANCEA8  8-bit Greyscale w/ 8-bit Alpha
   UPNG_INDEX1       1-bit 2 Color RGB INDEX Color Palette
   UPNG_INDEX2       2-bit 4 Color RGB INDEX Color Palette
-  UPNG_INDEX4       4-bit 8 Color RGB INDEX Color Palette
+  UPNG_INDEX4       4-bit 16 Color RGB INDEX Color Palette
   UPNG_INDEX8       8-bit 256 Color RGB INDEX Color Palette
 
 Possible error states are:
