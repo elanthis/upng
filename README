@@ -32,7 +32,7 @@ Features
 uPNG supports loading and decoding PNG images into a simple byte buffer, suitable
 for passing directly to OpenGL as texture data.
 
-uPNG does NOT support interlaced images, paletted images, and fixed-transparency.
+uPNG does NOT support interlaced images, and fixed-transparency.
 Checksums are NOT verified and corrupt image data may be undetected.
 
 It DOES support RGB, RGBA, greyscale, and greyscale-with-alpha images.  RGB and
@@ -115,6 +115,7 @@ The formats supported are:
   UPNG_INDEX2       2-bit 4 Color RGB INDEX Color Palette
   UPNG_INDEX4       4-bit 16 Color RGB INDEX Color Palette
   UPNG_INDEX8       8-bit 256 Color RGB INDEX Color Palette
+  (Now uPNG support paletted images !)
 
 Possible error states are:
 
