@@ -81,6 +81,6 @@ upng_format	upng_get_format		(const upng_t* upng);
 
 const unsigned char*	upng_get_buffer		(const upng_t* upng);
 unsigned				upng_get_size		(const upng_t* upng);
-const unsigned char*	upng_get_pallet		(const upng_t* upng);
+const unsigned char*	upng_get_palette	(const upng_t* upng);
 
 #endif /*defined(UPNG_H)*/

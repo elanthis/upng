@@ -95,7 +95,7 @@ struct upng_t {
 	unsigned char*	buffer;
 	unsigned long	size;
 
-	unsigned char*	pallet;
+	unsigned char*	palette;
 
 	upng_error		error;
 	unsigned		error_line;
@@ -983,9 +983,9 @@ upng_error upng_decode(upng_t* upng)
 	const unsigned char *chunk;
 	unsigned char* compressed;
 	unsigned char* inflated;
-	unsigned char* pallet = NULL;
+	unsigned char* palette = NULL;
 	unsigned long compressed_size = 0, compressed_index = 0;
-	unsigned long pallet_size = 0;
+	unsigned long palette_size = 0;
 	unsigned long inflated_size;
 	upng_error error;
 
@@ -1047,7 +1047,7 @@ upng_error upng_decode(upng_t* upng)
 		if (upng_chunk_type(chunk) == CHUNK_IDAT) {
 			compressed_size += length;
 		} else if (upng_chunk_type(chunk) == CHUNK_PLTE) {
-			pallet_size = length;
+			palette_size = length;
 		} else if (upng_chunk_type(chunk) == CHUNK_IEND) {
 			break;
 		} else if (upng_chunk_critical(chunk)) {
@@ -1065,9 +1065,9 @@ upng_error upng_decode(upng_t* upng)
 		return upng->error;
 	}
 
-	if (pallet_size) {
-		pallet = (unsigned char*)malloc(pallet_size);
-		if (pallet == NULL) {
+	if (palette_size) {
+		palette = (unsigned char*)malloc(palette_size);
+		if (palette == NULL) {
 			free(compressed);
 			SET_ERROR(upng, UPNG_ENOMEM);
 			return upng->error;
@@ -1090,7 +1090,7 @@ upng_error upng_decode(upng_t* upng)
 			compressed_index += length;
 		} else if (upng_chunk_type(chunk) == CHUNK_PLTE) {
 			data = chunk + 8;
-			memcpy(pallet, data, pallet_size);
+			memcpy(palette, data, palette_size);
 		} else if (upng_chunk_type(chunk) == CHUNK_IEND) {
 			break;
 		}
@@ -1102,7 +1102,7 @@ upng_error upng_decode(upng_t* upng)
 	inflated_size = ((upng->width * (upng->height * upng_get_bpp(upng) + 7)) / 8) + upng->height;
 	inflated = (unsigned char*)malloc(inflated_size);
 	if (inflated == NULL) {
-		free(pallet);
+		free(palette);
 		free(compressed);
 		SET_ERROR(upng, UPNG_ENOMEM);
 		return upng->error;
@@ -1111,7 +1111,7 @@ upng_error upng_decode(upng_t* upng)
 	/* decompress image data */
 	error = uz_inflate(upng, inflated, inflated_size, compressed, compressed_size);
 	if (error != UPNG_EOK) {
-		free(pallet);
+		free(palette);
 		free(compressed);
 		free(inflated);
 		return upng->error;
@@ -1124,7 +1124,7 @@ upng_error upng_decode(upng_t* upng)
 	upng->size = (upng->height * upng->width * upng_get_bpp(upng) + 7) / 8;
 	upng->buffer = (unsigned char*)malloc(upng->size);
 	if (upng->buffer == NULL) {
-		free(pallet);
+		free(palette);
 		free(inflated);
 		upng->size = 0;
 		SET_ERROR(upng, UPNG_ENOMEM);
@@ -1136,13 +1136,13 @@ upng_error upng_decode(upng_t* upng)
 	free(inflated);
 
 	if (upng->error != UPNG_EOK) {
-		free(pallet);
+		free(palette);
 		free(upng->buffer);
 		upng->buffer = NULL;
 		upng->size = 0;
 	} else {
-		/* pallet */
-		upng->pallet = pallet;
+		/* palette */
+		upng->palette = palette;
 		upng->state = UPNG_DECODED;
 	}
 
@@ -1239,9 +1239,9 @@ upng_t* upng_new_from_file(const char *filename)
 
 void upng_free(upng_t* upng)
 {
-	/* deallocate pallet */
-	if (upng->pallet != NULL) {
-		free(upng->pallet);
+	/* deallocate palette */
+	if (upng->palette != NULL) {
+		free(upng->palette);
 	}
 
 	/* deallocate image buffer */
@@ -1326,7 +1326,7 @@ unsigned upng_get_size(const upng_t* upng)
 	return upng->size;
 }
 
-const unsigned char* upng_get_pallet(const upng_t* upng)
+const unsigned char* upng_get_palette(const upng_t* upng)
 {
-	return upng->pallet;
+	return upng->palette;
 }
