@@ -1,6 +1,8 @@
+png2rgb
 png2tga
 glview
 *.o
 *.sh
 *.png
+!fruits.png
 *.tga
