@@ -23,7 +23,10 @@ freely, subject to the following restrictions:
 		3. This notice may not be removed or altered from any source
 		distribution.
 */
-
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1279,3 +1282,6 @@ unsigned upng_get_size(const upng_t* upng)
 {
 	return upng->size;
 }
+#ifdef __cplusplus
+}
+#endif
