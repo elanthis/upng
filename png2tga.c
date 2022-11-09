@@ -1,5 +1,9 @@
 #include <stdio.h>
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 
 #include "upng.h"
 
