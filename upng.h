@@ -23,12 +23,14 @@ freely, subject to the following restrictions:
 		3. This notice may not be removed or altered from any source
 		distribution.
 */
+
+#if !defined(UPNG_H)
+#define UPNG_H
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-#if !defined(UPNG_H)
-#define UPNG_H
 
 typedef enum upng_error {
 	UPNG_EOK			= 0, /* success (no error) */
@@ -81,7 +83,9 @@ upng_format	upng_get_format		(const upng_t* upng);
 const unsigned char*	upng_get_buffer		(const upng_t* upng);
 unsigned				upng_get_size		(const upng_t* upng);
 
-#endif /*defined(UPNG_H)*/
 #ifdef __cplusplus
 }
 #endif
+
+#endif /*defined(UPNG_H)*/
+
