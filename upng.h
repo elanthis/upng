@@ -27,6 +27,11 @@ freely, subject to the following restrictions:
 #if !defined(UPNG_H)
 #define UPNG_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 typedef enum upng_error {
 	UPNG_EOK			= 0, /* success (no error) */
 	UPNG_ENOMEM			= 1, /* memory allocation failed */
@@ -78,4 +83,9 @@ upng_format	upng_get_format		(const upng_t* upng);
 const unsigned char*	upng_get_buffer		(const upng_t* upng);
 unsigned				upng_get_size		(const upng_t* upng);
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /*defined(UPNG_H)*/
+

@@ -1,11 +1,12 @@
 #include <SDL/SDL.h>
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
+#include <stdlib.h>
 #else
 #include <GL/gl.h>
+#include <malloc.h>
 #endif
 #include <stdio.h>
-#include <malloc.h>
 
 #include "upng.h"
 
